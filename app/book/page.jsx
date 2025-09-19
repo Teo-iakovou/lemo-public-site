@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getServices } from "../../lib/api";
@@ -40,7 +40,9 @@ export default function BookServicePage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <BookingProgress />
+      <Suspense fallback={<div className="my-2" />}> 
+        <BookingProgress />
+      </Suspense>
       <h1 className="text-2xl font-semibold">Book an appointment</h1>
       <p className="text-neutral-600">Select a service to continue.</p>
       {services.length === 1 && (
