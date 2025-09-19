@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import BookingProgress from "../../../components/BookingProgress";
 import Calendar from "../../../components/Calendar";
 import { getAvailability } from "../../../lib/api";
 
-export default function BookDatePage() {
+function BookDateInner() {
   const search = useSearchParams();
   const serviceId = search.get("serviceId") || "";
   const [date, setDate] = useState("");
@@ -98,5 +98,13 @@ export default function BookDatePage() {
         </Link>
       </div>
     </main>
+  );
+}
+
+export default function BookDatePage() {
+  return (
+    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Select a date</h1><p className="text-neutral-600">Loading…</p></main>}>
+      <BookDateInner />
+    </Suspense>
   );
 }

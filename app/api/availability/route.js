@@ -26,7 +26,7 @@ function businessWindow(date) {
   return { open: 9 * 60, close: 19 * 60 };
 }
 
-function slotify({ date, duration = 40, step = 20 }) {
+function slotify({ date, duration = 40, step = 40 }) {
   const win = businessWindow(date);
   if (!win) return [];
   const slots = [];
@@ -59,7 +59,7 @@ export async function GET(request) {
 
   const base = BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
-  const step = 20; // grid step in minutes
+  const step = 40; // grid step in minutes (appointments every 40')
 
   const day = parseLocalDate(date);
   const win = businessWindow(day);
@@ -89,9 +89,14 @@ export async function GET(request) {
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
+        // If backend returns any break for this date, treat the day as fully blocked
+        const hasBreak = list.some((a) => a?.type === 'break' && toYMD(new Date(a.appointmentDateTime || a.start)) === date);
+        if (hasBreak) {
+          return Response.json({ slots: [] }, { status: 200 });
+        }
         existing = list
           .filter((a) => a?.appointmentDateTime || a?.start)
-          .filter((a) => (a?.type ? a.type === "appointment" : true))
+          // Treat both real appointments and breaks as blocking
           .filter((a) => (a?.appointmentStatus ? a.appointmentStatus === "confirmed" : true))
           .map((a) => ({
             start: new Date(a.appointmentDateTime || a.start),

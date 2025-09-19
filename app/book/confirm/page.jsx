@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createAppointment } from "../../../lib/api";
 import BookingProgress from "../../../components/BookingProgress";
 
-export default function BookConfirmPage() {
+function BookConfirmInner() {
   const search = useSearchParams();
   const router = useRouter();
   const serviceId = search.get("serviceId") || "";
@@ -67,5 +67,13 @@ export default function BookConfirmPage() {
         {submitting ? "Booking…" : "Confirm and book"}
       </button>
     </main>
+  );
+}
+
+export default function BookConfirmPage() {
+  return (
+    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Confirm booking</h1><p className="text-neutral-600">Loading…</p></main>}>
+      <BookConfirmInner />
+    </Suspense>
   );
 }

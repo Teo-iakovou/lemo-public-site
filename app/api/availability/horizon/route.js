@@ -26,7 +26,7 @@ function businessWindow(date) {
   return { open: 9 * 60, close: 19 * 60 };
 }
 
-function generateSlots({ date, duration = 40, step = 20 }) {
+function generateSlots({ date, duration = 40, step = 40 }) {
   const win = businessWindow(date);
   if (!win) return [];
   const out = [];
@@ -76,6 +76,11 @@ export async function GET(request) {
       const res = await fetch(`${BACKEND_BASE_URL}/api/appointments/range?${qs.toString()}`, { cache: 'no-store' });
       if (res.ok) {
         const docs = await res.json();
+        const breakDays = new Set(
+          (Array.isArray(docs) ? docs : [])
+            .filter((a) => a?.type === 'break')
+            .map((a) => toYMD(new Date(a.appointmentDateTime || a.start)))
+        );
         const existing = (Array.isArray(docs) ? docs : [])
           .filter((a) => a?.appointmentDateTime || a?.start)
           .map((a) => ({
@@ -93,7 +98,8 @@ export async function GET(request) {
           const ds = toYMD(d);
           // Disallow past days (e.g., yesterday) from showing availability
           if (ds < todayYMD) { counts[ds] = 0; slotsMap[ds] = []; continue; }
-          const cand = generateSlots({ date: d, duration: 40, step: 20 });
+          if (breakDays.has(ds)) { counts[ds] = 0; slotsMap[ds] = []; continue; }
+          const cand = generateSlots({ date: d, duration: 40, step: 40 });
           if (!cand.length) { counts[ds] = 0; slotsMap[ds] = []; continue; }
           const dayAppts = existing.filter((b) => toYMD(b.start) === ds);
           const freeNums = cand.filter((s) => !dayAppts.some((b) => {
@@ -148,8 +154,7 @@ export async function GET(request) {
         const list = Array.isArray(data) ? data : data.appointments || [];
         existing = list
           .filter((a) => a?.appointmentDateTime)
-          // Only real appointments, confirmed when present
-          .filter((a) => (a?.type ? a.type === "appointment" : true))
+          // Include breaks as blocking as well
           .filter((a) => (a?.appointmentStatus ? a.appointmentStatus === "confirmed" : true))
           .map((a) => ({
             start: new Date(a.appointmentDateTime),
@@ -177,7 +182,7 @@ export async function GET(request) {
       if (slotsMap) slotsMap[ds] = [];
       continue;
     }
-    const slots = generateSlots({ date: d, duration: 40, step: 20 });
+    const slots = generateSlots({ date: d, duration: 40, step: 40 });
     if (!slots.length) {
       result[ds] = 0;
       if (slotsMap) slotsMap[ds] = [];

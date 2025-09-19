@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAvailability } from "../../../lib/api";
 import BookingProgress from "../../../components/BookingProgress";
 
-export default function BookTimePage() {
+function BookTimeInner() {
   const search = useSearchParams();
   const serviceId = search.get("serviceId") || "";
   const date = search.get("date") || "";
@@ -65,5 +65,13 @@ export default function BookTimePage() {
         </Link>
       </div>
     </main>
+  );
+}
+
+export default function BookTimePage() {
+  return (
+    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Select a time</h1><p className="text-neutral-600">Loading…</p></main>}>
+      <BookTimeInner />
+    </Suspense>
   );
 }

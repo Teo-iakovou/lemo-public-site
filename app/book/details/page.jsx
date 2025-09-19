@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import BookingProgress from "../../../components/BookingProgress";
 
-export default function BookDetailsPage() {
+function BookDetailsInner() {
   const search = useSearchParams();
   const router = useRouter();
   const serviceId = search.get("serviceId") || "";
@@ -76,5 +76,13 @@ export default function BookDetailsPage() {
         </button>
       </form>
     </main>
+  );
+}
+
+export default function BookDetailsPage() {
+  return (
+    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Your details</h1><p className="text-neutral-600">Loading…</p></main>}>
+      <BookDetailsInner />
+    </Suspense>
   );
 }
