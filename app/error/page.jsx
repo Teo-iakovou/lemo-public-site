@@ -1,10 +1,5 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-
-export default function ErrorPage() {
-  const search = useSearchParams();
-  const message = search.get("message") || "Something went wrong.";
+export default function ErrorPage({ searchParams }) {
+  const message = (searchParams && searchParams.message) || "Something went wrong.";
   return (
     <main className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-semibold">Error</h1>

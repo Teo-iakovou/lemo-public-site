@@ -1,5 +1,9 @@
 import { BACKEND_BASE_URL } from "../../../lib/config";
 
+// Lightweight in-memory cache for per-day availability
+const CACHE = new Map();
+const TTL_MS = 60 * 1000; // 60 seconds
+
 function toYMD(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -48,7 +52,8 @@ function overlaps(aStart, aDur, bStart, bDur) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
-  const barber = (searchParams.get("barber") || "").toLowerCase();
+  const barberRaw = searchParams.get("barber") || ""; // e.g., ΛΕΜΟ | ΦΟΡΟΥ
+  const barber = barberRaw.toLowerCase();
   // const serviceId = searchParams.get("serviceId");
   if (!date) return Response.json({ slots: [] }, { status: 200 });
 
@@ -60,20 +65,36 @@ export async function GET(request) {
   const win = businessWindow(day);
   if (!win) return Response.json({ slots: [] }, { status: 200 });
 
-  // Fetch existing appointments (broad, then filter locally by date)
+  // Do not allow booking in the past (e.g., yesterday)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (toYMD(day) < toYMD(today)) {
+    return Response.json({ slots: [] }, { status: 200 });
+  }
+
+  // Serve from cache when possible
+  const cacheKey = `${date}|${barberRaw}`;
+  const hit = CACHE.get(cacheKey);
+  if (hit && Date.now() - hit.ts < TTL_MS) {
+    return Response.json({ slots: hit.slots }, { status: 200 });
+  }
+
+  // Fetch existing appointments for just this day (and barber if provided)
   let existing = [];
   try {
     if (base) {
-      const res = await fetch(`${base}/api/appointments?limit=1000`, { cache: "no-store" });
+      const qs = new URLSearchParams({ from: date, to: date });
+      if (barberRaw) qs.set("barber", barberRaw);
+      const res = await fetch(`${base}/api/appointments/range?${qs.toString()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
         existing = list
-          .filter((a) => a?.appointmentDateTime)
+          .filter((a) => a?.appointmentDateTime || a?.start)
           .filter((a) => (a?.type ? a.type === "appointment" : true))
           .filter((a) => (a?.appointmentStatus ? a.appointmentStatus === "confirmed" : true))
           .map((a) => ({
-            start: new Date(a.appointmentDateTime),
+            start: new Date(a.appointmentDateTime || a.start),
             // Enforce 40-minute appointments for overlap logic
             duration: 40,
             barber: (a.barber || "").toLowerCase(),
@@ -107,5 +128,8 @@ export async function GET(request) {
     }
   }
 
-  return Response.json({ slots: free.map((s) => s.label) }, { status: 200 });
+  const out = free.map((s) => s.label);
+  // Store in cache
+  CACHE.set(cacheKey, { ts: Date.now(), slots: out });
+  return Response.json({ slots: out }, { status: 200 });
 }

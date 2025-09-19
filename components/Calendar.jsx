@@ -117,7 +117,8 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             const ds = toYMD(d);
             const inMonth = d.getMonth() === cursor.getMonth();
             const isSel = selected && toYMD(selected) === ds;
-            const disabled = isDisabled(d);
+            // Disallow selecting days from adjacent months when viewing a month
+            const disabled = isDisabled(d) || !inMonth;
             const count = highlights[ds] ?? null;
             const values = Object.values(highlights).filter((v) => typeof v === "number" && v > 0);
             const max = values.length ? Math.max(...values) : 0;

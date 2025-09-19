@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono, Bebas_Neue, Permanent_Marker } from "next/font/google";
+import BookingSSRProvider from "../components/BookingSSRProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,6 +33,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${graffiti.variable} antialiased`}>
+        <BookingSSRProvider />
         {children}
       </body>
     </html>

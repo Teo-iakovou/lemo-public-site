@@ -1,20 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Calendar from "./Calendar";
-import { getServices, createAppointment, getAvailability } from "../lib/api";
-import { getPrefetchedBookingData } from "../lib/prefetch";
+import { getServices, getAvailability, getHorizonAvailability, createAppointment } from "../lib/api";
 
 export default function BookingModal({ open, onClose }) {
   const router = useRouter();
   const [services, setServices] = useState([]);
-  const [servicesError, setServicesError] = useState("");
   const serviceId = services[0]?.id || services[0]?._id || "";
 
+  const [barber, setBarber] = useState("");
   const [date, setDate] = useState("");
-  const [showCalendar, setShowCalendar] = useState(true);
   const [slots, setSlots] = useState([]);
+  const [slotsByDate, setSlotsByDate] = useState({});
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [name, setName] = useState("");
@@ -23,222 +22,177 @@ export default function BookingModal({ open, onClose }) {
   const [time, setTime] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const formRef = useRef(null);
-  const [barber, setBarber] = useState("");
-  const DRAFT_KEY = "lemo_booking_draft";
 
-  function mapBarberUiToBackend(name) {
-    if (!name) return "";
-    const key = String(name).toLowerCase();
-    if (key === "lemo") return "ΛΕΜΟ";
-    if (key === "forou") return "ΦΟΡΟΥ";
-    return name; // fallback
-  }
-
-  const HORIZON_DAYS = 60; // extend horizon so bars and cache cover next month
+  const HORIZON_DAYS = 14;
   const today = useMemo(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
     return t;
   }, []);
-  // Use local YYYY-MM-DD (not UTC) so we don't expose yesterday when it's today locally
-  const minDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  // Allow selecting any future date: set a far future max date (10 years)
-  const maxDate = new Date(today.getTime() + 3650 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  // Use local Y-M-D to avoid UTC shifting yesterday into "today"
+  const minDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // Allow navigation through the end of next month
+  const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+  const maxDate = `${endOfNextMonth.getFullYear()}-${String(endOfNextMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfNextMonth.getDate()).padStart(2, '0')}`;
+
+  function toGreekBarber(id) {
+    if (!id) return "";
+    if (id === "Lemo") return "ΛΕΜΟ";
+    if (id === "Forou") return "ΦΟΡΟΥ";
+    return id;
+  }
 
   // Prefetch services when the modal opens
   useEffect(() => {
     if (!open) return;
-    // Always start fresh each time the modal opens
-    setBarber("");
-    setDate("");
-    setTime("");
-    setName("");
-    setPhone("");
-    setEmail("");
-    try { sessionStorage.removeItem(DRAFT_KEY); } catch {}
-    // First, try to hydrate from prefetched cache for instant UI
-    const cached = getPrefetchedBookingData();
-    if (cached?.services?.length) setServices(cached.services);
-    if (cached?.counts) setHighlights(cached.counts);
-    if (cached?.appointments) {
-      // normalize appointments to the shape the modal expects when computing slots
-      const ap = cached.appointments.map((a) => ({ start: a.start, duration: a.duration }));
-      // store raw; conversion happens later
-      // We'll stash as JSON-safe in state by keeping strings
-      setAppts(ap);
-    }
     let mounted = true;
     getServices()
       .then((data) => {
         if (!mounted) return;
         const list = Array.isArray(data) ? data : data?.services || [];
         setServices(list);
-        setServicesError("");
       })
-      .catch((e) => {
-        setServices([]);
-        setServicesError(e?.message || "Cannot reach booking backend. Check API URL.");
-      });
+      .catch(() => setServices([]));
     return () => {
       mounted = false;
     };
   }, [open]);
 
-  // No draft persistence: always reset on open per user request
-
-  // Helpers to compute slots locally
-  function toYMD(d) {
-    // Local date string to avoid UTC shifting
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${dd}`;
-  }
-  function parseLocalDate(ds) { const [y,m,dd] = ds.split("-").map(Number); return new Date(y, m-1, dd); }
-  function businessWindow(date) {
-    const dow = date.getDay();
-    if (dow === 0 || dow === 1) return null; // Sun, Mon
-    // Saturday until 17:40, Tue–Fri until 19:00
-    if (dow === 6) return { open: 9*60, close: 17*60 + 40 };
-    return { open: 9*60, close: 19*60 };
-  }
-  function generateSlots({ date, duration = 40, step = 20 }) {
-    const win = businessWindow(date);
-    if (!win) return [];
-    const out = [];
-    const breakStart = 13*60, breakEnd = 14*60; // daily break 13:00–14:00
-    for (let t = win.open; t + duration <= win.close; t += step) {
-      const overlapsBreak = !(t + duration <= breakStart || breakEnd <= t);
-      if (overlapsBreak) continue;
-      const hh = String(Math.floor(t/60)).padStart(2, "0");
-      const mm = String(t%60).padStart(2, "0");
-      out.push({ start: t, label: `${hh}:${mm}` });
-    }
-    return out;
-  }
-  function overlaps(aStart, aDur, bStart, bDur) { const aEnd=aStart+aDur, bEnd=bStart+bDur; return aStart<bEnd && bStart<aEnd; }
-
-  // Prefetch availability counts to decorate the calendar (single request)
-  const [highlights, setHighlights] = useState({});
-  const [loadingHints, setLoadingHints] = useState(false);
-  const [appts, setAppts] = useState([]);
-  const [monthStart, setMonthStart] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
-  });
+  // Load slots when date changes (use preloaded map when available)
   useEffect(() => {
-    let abort = false;
+    let mounted = true;
     async function run() {
-      if (!open || !serviceId) return;
-      setLoadingHints(true);
-      try {
-        // Fetch counts for the current visible month only
-        const start = monthStart;
-        const d = new Date(start + "T00:00:00");
-        const daysInMonth = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
-        const bGreek = mapBarberUiToBackend(barber);
-        const barberParam = bGreek ? `&barber=${encodeURIComponent(bGreek)}` : "";
-        const res = await fetch(`/api/availability/horizon?serviceId=${encodeURIComponent(serviceId)}&start=${start}&days=${daysInMonth}${barberParam}` , { cache: "no-store" });
-        const data = await res.json();
-        if (!abort) {
-          const counts = data || {};
-          setHighlights(counts || {});
-          setAppts([]);
-
-          // If no date chosen yet, auto-pick the nearest day with availability and prefill slots
-          try {
-            if (!date && counts) {
-              const dsList = Object.keys(counts).sort();
-              const todayYMD = toYMD(today);
-              const nextWithSlots = dsList.find((ds) => ds >= todayYMD && Number(counts[ds] || 0) > 0);
-              if (nextWithSlots) {
-                setDate(nextWithSlots);
-                // fetch exact slots for that day (barber-specific)
-                getAvailability({ serviceId, date: nextWithSlots, barber: mapBarberUiToBackend(barber) })
-                  .then((res2) => {
-                    const arr2 = Array.isArray(res2) ? res2 : res2?.slots || [];
-                    setSlots(arr2);
-                  })
-                  .catch(() => setSlots([]))
-                  .finally(() => setLoadingSlots(false));
-              }
-            }
-          } catch {}
+      if (!serviceId || !date) return;
+      const pre = slotsByDate[date];
+      if (pre) {
+        if (mounted) {
+          setSlots(pre);
+          setLoadingSlots(false);
         }
-      } catch {
-        if (!abort) { setHighlights({}); setAppts([]); }
+        return;
+      }
+      setLoadingSlots(true);
+      try {
+        const res = await getAvailability({ serviceId, date, barber: toGreekBarber(barber) });
+        const arr = Array.isArray(res) ? res : res?.slots || [];
+        if (mounted) {
+          setSlots(arr);
+          setSlotsByDate((m) => ({ ...m, [date]: arr }));
+        }
+      } catch (e) {
+        if (mounted) setSlots([]);
       } finally {
-        if (!abort) setLoadingHints(false);
+        if (mounted) setLoadingSlots(false);
       }
     }
-    if (barber) run(); else { setHighlights({}); setAppts([]); setLoadingHints(false); }
-    return () => { abort = true; };
-  }, [open, serviceId, monthStart, barber]);
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [serviceId, date, barber, slotsByDate]);
 
-  // Compute slots when date changes
+  // Prefetch availability counts and per-day slots via horizon; prefill first available
+  const [highlights, setHighlights] = useState({});
+  const [loadingHints, setLoadingHints] = useState(false);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+  const [blockCalendar, setBlockCalendar] = useState(false);
   useEffect(() => {
-    if (!serviceId || !date || !barber) { setSlots([]); return; }
-    setLoadingSlots(true);
-    const withinHorizon = (() => {
-      const d0 = new Date(today.getTime());
-      const d1 = new Date(today.getTime() + HORIZON_DAYS*86400000);
-      const dx = parseLocalDate(date);
-      return dx >= d0 && dx <= d1;
-    })();
+    let aborted = false;
+    async function run() {
+      if (!open || !serviceId || !barber) return;
+      // Seed from SSR bundle if present for instant paint
+      const initial = typeof window !== 'undefined' ? window.__BOOKING_INITIAL : null;
+      try {
+        if (initial) {
+          const key = barber === 'Lemo' ? 'LEMO' : 'FOROU';
+          const bundle = initial[key];
+          if (bundle && bundle.counts) {
+            setHighlights(bundle.counts);
+            if (bundle.firstAvailable && !date) {
+              setDate(bundle.firstAvailable.date);
+              const s = Array.isArray(bundle.firstAvailable.slots) ? bundle.firstAvailable.slots : [];
+              setSlots(s);
+              setSlotsByDate((m) => ({ ...m, [bundle.firstAvailable.date]: s }));
+            }
+          }
+        }
+      } catch {}
 
-    if (!withinHorizon) {
-      // Fetch accurate slots for dates beyond the prefetch horizon
-      getAvailability({ serviceId, date, barber: mapBarberUiToBackend(barber) })
-        .then((res) => {
-          const arr = Array.isArray(res) ? res : res?.slots || [];
-          setSlots(arr);
-        })
-        .catch(() => setSlots([]))
-        .finally(() => setLoadingSlots(false));
-      return;
+      // If we don't yet have counts, block calendar and show spinner first
+      setLoadingHints(true);
+      if (!initial || !initial[(barber === 'Lemo' ? 'LEMO' : 'FOROU')]?.counts) {
+        setBlockCalendar(true);
+      }
+      // Fetch full current month and prefetch next month in background
+      const currMonthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      const nextMonthStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+      try {
+        const data = await getHorizonAvailability({ start: currMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' });
+        if (aborted) return;
+        const counts = data?.counts || {};
+        setHighlights((prev) => ({ ...prev, ...counts }));
+        const map = data?.slots || {};
+        setSlotsByDate((prev) => ({ ...prev, ...map }));
+        // Prefill first available selection and slots when picking a barber
+        const first = data?.firstAvailable;
+        if (first && !date) {
+          setDate(first.date);
+          setSlots(Array.isArray(first.slots) ? first.slots : []);
+          setLoadingSlots(false);
+        }
+        // Background prefetch of next month to make Next instant
+        getHorizonAvailability({ start: nextMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+          .then((nxt) => {
+            if (aborted || !nxt) return;
+            const nCounts = nxt?.counts || {};
+            const nMap = nxt?.slots || {};
+            if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
+            if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
+          })
+          .catch(() => {});
+      } catch (_) {
+        if (!aborted) setHighlights({});
+      } finally {
+        if (!aborted) {
+          setLoadingHints(false);
+          setBlockCalendar(false);
+        }
+      }
     }
+    run();
+    return () => { aborted = true; };
+  }, [open, serviceId, barber, today, HORIZON_DAYS]);
 
-    // Compute from cached appointments for within-horizon dates
-    const day = parseLocalDate(date);
-    const candidates = generateSlots({ date: day, duration: 40, step: 20 });
-    const todays = appts
-      .map((a) => ({ start: new Date(a.start), duration: Number(a.duration)||40, barber: a.barber || null }))
-      .filter((a) => toYMD(a.start) === date);
-    const sel = mapBarberUiToBackend(barber).toLowerCase();
-    const free = candidates.filter((c) => !todays.some((b) => {
-      const bStart = b.start.getHours()*60 + b.start.getMinutes();
-      const overlapsTime = overlaps(c.start, 40, bStart, b.duration);
-      if (!overlapsTime) return false;
-      const bName = (b.barber || "").toLowerCase();
-      const affects = !sel || !bName || bName === sel;
-      return affects;
-    }));
-    const now = new Date();
-    if (toYMD(now) === date) {
-      const cutoff = now.getHours()*60 + now.getMinutes() + 60;
-      for (let i=free.length-1;i>=0;i--) if (free[i].start < cutoff) free.splice(i,1);
+  // When the modal closes, reset barber and selection so user must choose again
+  useEffect(() => {
+    if (!open) {
+      setBarber("");
+      setDate("");
+      setTime("");
+      setSlots([]);
+      setSlotsByDate({});
+      setHighlights({});
+      setLoadingHints(false);
+      setLoadingSlots(false);
+      setBlockCalendar(false);
+      setError("");
+      setSubmitting(false);
     }
-    setSlots(free.map((s) => s.label));
-    setLoadingSlots(false);
-  }, [date, serviceId, appts, barber]);
+  }, [open]);
 
   async function onConfirm() {
-    if (!serviceId || !barber || !date || !time || !name || !phone) return;
+    if (!serviceId || !date || !time || !name || !phone) return;
     setSubmitting(true);
     setError("");
     try {
       const dateTime = `${date}T${time}`;
-      const payload = { serviceId, dateTime, name, phone, barber: mapBarberUiToBackend(barber) };
+      const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
       if (email) payload.email = email;
       const result = await createAppointment(payload);
       const id = result?.id || result?._id || "";
       const p = new URLSearchParams();
       if (id) p.set("id", id);
-      // Clear draft on success
-      try { sessionStorage.removeItem(DRAFT_KEY); } catch {}
       onClose?.();
       router.push(`/success?${p.toString()}`);
     } catch (e) {
@@ -248,49 +202,6 @@ export default function BookingModal({ open, onClose }) {
     }
   }
 
-  const canSubmit = !!(serviceId && barber && date && time && name && phone && !submitting);
-
-  const panelRef = useRef(null);
-  const closeBtnRef = useRef(null);
-
-  // Close on Escape and trap focus inside the modal
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose?.();
-      } else if (e.key === "Tab") {
-        // Simple focus trap
-        const root = panelRef.current;
-        if (!root) return;
-        const focusables = root.querySelectorAll(
-          'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusables.length) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    // initial focus
-    setTimeout(() => {
-      closeBtnRef.current?.focus();
-    }, 0);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   return (
@@ -299,26 +210,18 @@ export default function BookingModal({ open, onClose }) {
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
 
       {/* Panel: full screen on mobile, centered card on larger screens */}
-      <div
-        ref={panelRef}
-        className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden flex flex-col"
-      >
+      <div className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
           <div className="font-display text-lg">Book an appointment</div>
-          <button ref={closeBtnRef} onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Close</button>
+          <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Close</button>
         </div>
 
         {/* Body */}
-        <div className="p-4 sm:p-6 grid grid-cols-1 gap-6 overflow-y-auto flex-1 max-h-[calc(100vh-64px)] sm:max-h-none">
-          {servicesError && (
-            <div className="px-3 py-2 rounded bg-red-500/10 border border-red-500/30 text-red-200 text-sm">
-              {servicesError}
-            </div>
-          )}
+        <div className="p-4 sm:p-6 grid grid-cols-1 gap-6">
           {/* Step 1: Barber selection */}
           {!barber && (
-            <div>
+            <div className="sm:col-span-2">
               <div className="mb-3 font-display text-lg">Choose your barber</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[{ id: "Lemo", name: "Lemo" }, { id: "Forou", name: "Forou" }].map((b) => (
@@ -336,81 +239,127 @@ export default function BookingModal({ open, onClose }) {
               </div>
             </div>
           )}
-          {/* Calendar + slots (hidden after picking a time so only inputs remain) */}
+
+          {/* Left: Calendar */}
           {barber && !time && (
-          <div>
+          <div className="relative">
+            <div className={blockCalendar ? 'opacity-0 pointer-events-none' : ''}>
               <Calendar
                 value={date}
-                onChange={(ds) => {
-                  setDate(ds);
-                  setTime("");
-                }}
+              onChange={(ds) => {
+                setDate(ds);
+                setTime("");
+                // If we already have preloaded slots for this date, make sure no spinner flashes
+                if (slotsByDate[ds]) setLoadingSlots(false);
+              }}
                 minDate={minDate}
                 maxDate={maxDate}
                 closedWeekdays={[0, 1]}
                 highlights={highlights}
-                onMonthChange={(d) => {
-                  const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
-                  setMonthStart(start);
-                }}
+                onMonthChange={(firstOfMonth) => {
+                // When navigating months, warm counts for that visible range
+                const start = `${firstOfMonth.getFullYear()}-${String(firstOfMonth.getMonth() + 1).padStart(2, '0')}-01`;
+                // Decide if we already have full month data (counts + slots) to avoid spinner
+                const daysInMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0).getDate();
+                const monthDates = Array.from({ length: daysInMonth }, (_, i) => {
+                  const d = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth(), i + 1);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, '0');
+                  return `${y}-${m}-${day}`;
+                });
+                const countsLoaded = monthDates.every((ds) => Object.prototype.hasOwnProperty.call(highlights, ds));
+                const slotsLoaded = monthDates.every((ds) => Object.prototype.hasOwnProperty.call(slotsByDate, ds));
+                const needSpinner = !(countsLoaded && slotsLoaded);
+                if (needSpinner) {
+                  setLoadingMonth(true);
+                  setBlockCalendar(true);
+                }
+                getHorizonAvailability({ start, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+                  .then((data) => {
+                    const counts = data?.counts || {};
+                    setHighlights((prev) => ({ ...prev, ...counts }));
+                    const map = data?.slots || {};
+                    if (map && Object.keys(map).length) {
+                      setSlotsByDate((prev) => ({ ...prev, ...map }));
+                    }
+                    // Background prefetch one more month ahead
+                    const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
+                    const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+                    getHorizonAvailability({ start: nextStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+                      .then((nxt) => {
+                        const nCounts = nxt?.counts || {};
+                        const nMap = nxt?.slots || {};
+                        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
+                        if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
+                      })
+                      .catch(() => {});
+                  })
+                  .catch(() => {})
+                  .finally(() => {
+                    if (needSpinner) {
+                      setLoadingMonth(false);
+                      setBlockCalendar(false);
+                    }
+                  });
+              }}
               />
-              {/* Availability/loading hints removed for a cleaner look */}
-              {date && (
-                <div className="mt-4">
-                  <div className="text-sm mb-2">Time</div>
-                  {loadingSlots && <p className="text-sm">Loading slots…</p>}
-                  {!loadingSlots && (
-                    <div className="flex flex-wrap gap-2">
-                      {slots.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => {
-                            setTime(t);
-                            // Smoothly scroll to the form after picking a slot
-                            setTimeout(() => {
-                              formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }, 0);
-                          }}
-                          className={`px-3 py-2 rounded-md border text-sm ${
-                            time === t ? "border-white bg-white text-black" : "border-white/20 hover:bg-white/10"
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                      {slots.length === 0 && (
-                        <p className="text-sm text-neutral-400">No free slots</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* Legend for availability bars */}
-              <div className="flex items-center gap-4 text-xs text-neutral-300 mt-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-1 w-8 rounded bg-purple-500" />
-                  <span>available</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-1 w-8 rounded bg-red-500" />
-                  <span>fully booked</span>
-                </div>
+            </div>
+            {(blockCalendar && (loadingMonth || loadingHints)) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div
+                  aria-label="Loading availability"
+                  className="h-6 w-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"
+                />
               </div>
+            )}
           </div>
           )}
 
-          {/* Details form only after choosing a time */}
-          {barber && date && time && (
+          {/* Right: Slots + Details */}
           <div>
-            <form ref={formRef} className="grid gap-3" onSubmit={(e) => e.preventDefault()}>
+            {!time && barber && date && (
+              <div>
+                <div className="text-sm mb-2">
+                  Select time for
+                  {" "}
+                  <span className="text-purple-500 font-semibold">
+                    {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}
+                  </span>
+                </div>
+                {(
+                  <div className="flex flex-wrap gap-2">
+                    {slots.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTime(t)}
+                        className={`px-3 py-2 rounded-md border text-sm ${
+                          time === t
+                            ? "border-white bg-white text-black"
+                            : "border-white/20 hover:bg-white/10"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                    {(!loadingSlots && slots.length === 0) && (
+                      <p className="text-sm text-neutral-400">No free slots</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {time && (
+            <form className="grid gap-3 mt-4" onSubmit={(e) => e.preventDefault()}>
               <label className="block">
                 <span className="text-sm">Name</span>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className={`block mt-1 p-3 border rounded-md w-full bg-transparent text-white border-white/10`}
+                  className="block mt-1 p-2 border border-white/10 rounded-md w-full bg-transparent text-white"
                   required
                 />
               </label>
@@ -420,7 +369,7 @@ export default function BookingModal({ open, onClose }) {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className={`block mt-1 p-3 border rounded-md w-full bg-transparent text-white border-white/10`}
+                  className="block mt-1 p-2 border border-white/10 rounded-md w-full bg-transparent text-white"
                   required
                 />
               </label>
@@ -430,38 +379,22 @@ export default function BookingModal({ open, onClose }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={`block mt-1 p-3 border rounded-md w-full bg-transparent text-white border-white/10`}
+                  className="block mt-1 p-2 border border-white/10 rounded-md w-full bg-transparent text-white"
                 />
               </label>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <div className="hidden sm:block">
-                <button
-                  type="button"
-                  disabled={!canSubmit || slots.length === 0}
-                  onClick={onConfirm}
-                  className="mt-1 px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
-                >
-                  {submitting ? "Booking…" : "Confirm and book"}
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={!serviceId || !date || !time || !name || !phone || submitting}
+                onClick={onConfirm}
+                className="mt-1 px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
+              >
+                {submitting ? "Booking…" : "Confirm and book"}
+              </button>
             </form>
+            )}
           </div>
-          )}
         </div>
-
-        {/* Mobile sticky confirm bar */}
-        {date && time && (
-          <div className="sm:hidden sticky bottom-0 left-0 right-0 bg-black/90 backdrop-blur border-t border-white/10 p-3">
-            <button
-              type="button"
-              disabled={!canSubmit || slots.length === 0}
-              onClick={onConfirm}
-              className="w-full px-4 py-3 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
-            >
-              {submitting ? "Booking…" : "Confirm and book"}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

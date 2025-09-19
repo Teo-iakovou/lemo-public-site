@@ -50,8 +50,9 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const start = searchParams.get("start"); // YYYY-MM-DD
   const days = Math.max(1, Math.min(parseInt(searchParams.get("days") || "14", 10), 90));
-  const include = (searchParams.get("include") || "").split(",").map((s) => s.trim());
-  const barber = (searchParams.get("barber") || "").toLowerCase();
+  const include = (searchParams.get("include") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const barberRaw = searchParams.get("barber") || ""; // pass this to backend as-is (e.g., ΛΕΜΟ / ΦΟΡΟΥ)
+  const barber = barberRaw.toLowerCase(); // use lowercase only for local filtering & cache key
   // const serviceId = searchParams.get("serviceId"); // reserved
 
   if (!start) return Response.json({}, { status: 200 });
@@ -65,18 +66,73 @@ export async function GET(request) {
   const startDate = parseYMD(start);
   const endDate = new Date(startDate.getTime() + (days - 1) * 86400000);
 
-  // Delegate to backend month endpoint when available for speed
+  // If caller needs per-day slots, compute from appointment range in one backend call
+  if (BACKEND_BASE_URL && include.includes('slots')) {
+    try {
+      const from = toYMD(startDate);
+      const to = toYMD(endDate);
+      const qs = new URLSearchParams({ from, to });
+      if (barberRaw) qs.set("barber", barberRaw);
+      const res = await fetch(`${BACKEND_BASE_URL}/api/appointments/range?${qs.toString()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const docs = await res.json();
+        const existing = (Array.isArray(docs) ? docs : [])
+          .filter((a) => a?.appointmentDateTime || a?.start)
+          .map((a) => ({
+            start: new Date(a.appointmentDateTime || a.start),
+            duration: 40,
+            barber: (a.barber || '').toLowerCase(),
+          }));
+
+        const counts = {};
+        const slotsMap = {};
+        let firstAvailable = null;
+        const todayYMD = toYMD(new Date());
+        for (let i = 0; i < days; i++) {
+          const d = new Date(startDate.getTime() + i * 86400000);
+          const ds = toYMD(d);
+          // Disallow past days (e.g., yesterday) from showing availability
+          if (ds < todayYMD) { counts[ds] = 0; slotsMap[ds] = []; continue; }
+          const cand = generateSlots({ date: d, duration: 40, step: 20 });
+          if (!cand.length) { counts[ds] = 0; slotsMap[ds] = []; continue; }
+          const dayAppts = existing.filter((b) => toYMD(b.start) === ds);
+          const freeNums = cand.filter((s) => !dayAppts.some((b) => {
+            const bStart = b.start.getHours() * 60 + b.start.getMinutes();
+            return overlaps(s, 40, bStart, b.duration);
+          }));
+          // Same-day cutoff 60'
+          const now = new Date();
+          if (toYMD(now) === ds) {
+            const cutoff = now.getHours() * 60 + now.getMinutes() + 60;
+            for (let k = freeNums.length - 1; k >= 0; k--) if (freeNums[k] < cutoff) freeNums.splice(k, 1);
+          }
+          const labels = freeNums.map((t) => `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`);
+          counts[ds] = labels.length;
+          slotsMap[ds] = labels;
+          if (!firstAvailable && ds >= todayYMD && labels.length) {
+            firstAvailable = { date: ds, slots: labels };
+          }
+        }
+        const payload = { counts, slots: slotsMap, firstAvailable };
+        CACHE.set(cacheKey, { ts: Date.now(), data: payload });
+        return Response.json(payload, { status: 200 });
+      }
+    } catch {}
+  }
+
+  // Delegate to backend month endpoint when available for speed (counts only)
   if (BACKEND_BASE_URL) {
     try {
       const from = toYMD(startDate);
       const to = toYMD(endDate);
       const qs = new URLSearchParams({ from, to });
-      if (barber) qs.set("barber", barber);
+      if (barberRaw) qs.set("barber", barberRaw);
       const res = await fetch(`${BACKEND_BASE_URL}/api/availability/month?${qs.toString()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        CACHE.set(cacheKey, { ts: Date.now(), data });
-        return Response.json(data, { status: 200 });
+        const payload = data && data.counts ? data : { counts: data };
+        CACHE.set(cacheKey, { ts: Date.now(), data: payload });
+        return Response.json(payload, { status: 200 });
       }
     } catch {}
   }
@@ -110,12 +166,21 @@ export async function GET(request) {
   }
 
   const result = {};
+  const slotsMap = include.includes('slots') ? {} : null;
+  const todayYMD = toYMD(new Date());
   for (let i = 0; i < days; i++) {
     const d = new Date(startDate.getTime() + i * 86400000);
     const ds = toYMD(d);
+    // Disallow past days in counts/slots
+    if (ds < todayYMD) {
+      result[ds] = 0;
+      if (slotsMap) slotsMap[ds] = [];
+      continue;
+    }
     const slots = generateSlots({ date: d, duration: 40, step: 20 });
     if (!slots.length) {
       result[ds] = 0;
+      if (slotsMap) slotsMap[ds] = [];
       continue;
     }
     const dayAppointments = existing.filter((b) => toYMD(b.start) === ds);
@@ -132,14 +197,13 @@ export async function GET(request) {
       for (let k = free.length - 1; k >= 0; k--) if (free[k] < cutoff) free.splice(k, 1);
     }
     result[ds] = free.length;
+    if (slotsMap) {
+      const labels = free.map((t) => `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`);
+      slotsMap[ds] = labels;
+    }
   }
 
-  const payload = { ...result };
-  if (include.includes("appointments")) {
-    payload.appointments = existing
-      .filter((a) => a.start >= startDate && a.start <= new Date(endDate.getTime() + 86399999))
-      .map((a) => ({ start: a.start.toISOString(), duration: a.duration, barber: a.barber || null }));
-  }
+  const payload = slotsMap ? { counts: { ...result }, slots: slotsMap } : { counts: { ...result } };
   CACHE.set(cacheKey, { ts: Date.now(), data: payload });
   return Response.json(payload, { status: 200 });
 }
