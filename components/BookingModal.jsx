@@ -70,10 +70,10 @@ export default function BookingModal({ open, onClose }) {
     let mounted = true;
     async function run() {
       if (!serviceId || !date) return;
-      const pre = slotsByDate[date];
-      if (pre) {
+      const hasPre = Object.prototype.hasOwnProperty.call(slotsByDate, date);
+      if (hasPre) {
         if (mounted) {
-          setSlots(pre);
+          setSlots(slotsByDate[date]);
           setLoadingSlots(false);
         }
         return;
@@ -270,8 +270,8 @@ export default function BookingModal({ open, onClose }) {
               onChange={(ds) => {
                 setDate(ds);
                 setTime("");
-                // If we already have preloaded slots for this date, make sure no spinner flashes
-                if (slotsByDate[ds]) setLoadingSlots(false);
+                // If we already have preloaded slots (even empty array), suppress spinner
+                if (Object.prototype.hasOwnProperty.call(slotsByDate, ds)) setLoadingSlots(false);
               }}
                 minDate={minDate}
                 maxDate={maxDate}
@@ -307,7 +307,7 @@ export default function BookingModal({ open, onClose }) {
                     // Background prefetch one more month ahead
                     const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
                     const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
-                    getHorizonAvailability({ start: nextStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+                    getHorizonAvailability({ start: nextStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
                       .then((nxt) => {
                         const nCounts = nxt?.counts || {};
                         const nMap = nxt?.slots || {};
