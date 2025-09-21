@@ -42,6 +42,12 @@ export default function BookingModal({ open, onClose }) {
     if (id === "Forou") return "ΦΟΡΟΥ";
     return id;
   }
+  function toBarberId(id) {
+    if (!id) return "";
+    if (id === "Lemo") return "lemo";
+    if (id === "Forou") return "forou";
+    return String(id).toLowerCase();
+  }
 
   // Prefetch services when the modal opens
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function BookingModal({ open, onClose }) {
       }
       setLoadingSlots(true);
       try {
-        const res = await getAvailability({ serviceId, date, barber: toGreekBarber(barber) });
+        const res = await getAvailability({ serviceId, date, barberId: toBarberId(barber) });
         const arr = Array.isArray(res) ? res : res?.slots || [];
         if (mounted) {
           setSlots(arr);
@@ -148,8 +154,8 @@ export default function BookingModal({ open, onClose }) {
       try {
         // Fetch current and next month in parallel for snappier load
         const [data, nxt] = await Promise.all([
-          getHorizonAvailability({ start: currMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' }),
-          getHorizonAvailability({ start: nextMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+          getHorizonAvailability({ start: currMonthStart, days: 35, barberId: toBarberId(barber), include: 'slots' }),
+          getHorizonAvailability({ start: nextMonthStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
         ]);
         if (aborted) return;
         const counts = data?.counts || {};
@@ -290,7 +296,7 @@ export default function BookingModal({ open, onClose }) {
                   setLoadingMonth(true);
                   setBlockCalendar(true);
                 }
-                getHorizonAvailability({ start, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+                getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
                   .then((data) => {
                     const counts = data?.counts || {};
                     setHighlights((prev) => ({ ...prev, ...counts }));

@@ -51,13 +51,13 @@ export async function GET(request) {
   const start = searchParams.get("start"); // YYYY-MM-DD
   const days = Math.max(1, Math.min(parseInt(searchParams.get("days") || "14", 10), 90));
   const include = (searchParams.get("include") || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const barberRaw = searchParams.get("barber") || ""; // pass this to backend as-is (e.g., ΛΕΜΟ / ΦΟΡΟΥ)
-  const barber = barberRaw.toLowerCase(); // use lowercase only for local filtering & cache key
+  const barberId = (searchParams.get("barberId") || "").toLowerCase();
+  const greekBarber = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || '');
   // const serviceId = searchParams.get("serviceId"); // reserved
 
   if (!start) return Response.json({}, { status: 200 });
 
-  const cacheKey = `${start}|${days}|${barber}|${include.sort().join(',')}`;
+  const cacheKey = `${start}|${days}|${barberId}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
     return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
@@ -72,7 +72,9 @@ export async function GET(request) {
       const from = toYMD(startDate);
       const to = toYMD(endDate);
       const qs = new URLSearchParams({ from, to });
-      if (barberRaw) qs.set("barber", barberRaw);
+      // Backend expects 'barber' (Greek). Map stable ASCII ids to Greek here.
+      if (barberId && greekBarber) qs.set('barber', greekBarber);
+      else if (greekBarber) qs.set('barber', greekBarber);
       if (include.includes('slots')) qs.set('include', 'slots');
       // Allow backend Cache-Control (s-maxage, stale-while-revalidate) to be honored
       const res = await fetch(`${BACKEND_BASE_URL}/api/availability/month?${qs.toString()}`);

@@ -52,8 +52,10 @@ function overlaps(aStart, aDur, bStart, bDur) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
-  const barberRaw = searchParams.get("barber") || ""; // e.g., ΛΕΜΟ | ΦΟΡΟΥ
-  const barber = barberRaw.toLowerCase();
+  const barberId = (searchParams.get("barberId") || "").toLowerCase();
+  const barberRaw = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || "");
+  // Normalize to Greek lowercase for local comparisons (matches backend data)
+  const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
   // const serviceId = searchParams.get("serviceId");
   if (!date) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
 
@@ -73,7 +75,7 @@ export async function GET(request) {
   }
 
   // Serve from cache when possible
-  const cacheKey = `${date}|${barberRaw}`;
+  const cacheKey = `${date}|${barberId || barberRaw}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
     return Response.json({ slots: hit.slots }, { status: 200 });
@@ -84,6 +86,7 @@ export async function GET(request) {
   try {
     if (base) {
       const qs = new URLSearchParams({ from: date, to: date });
+      // Backend expects Greek barber; do not send barberId
       if (barberRaw) qs.set("barber", barberRaw);
       const res = await fetch(`${base}/api/appointments/range?${qs.toString()}`, { cache: "no-store" });
       if (res.ok) {
@@ -105,7 +108,8 @@ export async function GET(request) {
             barber: (a.barber || "").toLowerCase(),
           }))
           .filter((a) => toYMD(a.start) === date)
-          .filter((a) => !barber || !a.barber || a.barber === barber);
+          // Compare using Greek lowercase id (backend data is Greek)
+          .filter((a) => !greekLower || !a.barber || a.barber === greekLower);
       }
     }
   } catch {
