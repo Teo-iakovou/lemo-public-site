@@ -156,10 +156,9 @@ export default function BookingModal({ open, onClose }) {
         const map = data?.slots || {};
         const nCounts = nxt?.counts || {};
         const nMap = nxt?.slots || {};
-        if (Object.keys(counts).length) setHighlights((prev) => ({ ...prev, ...counts }));
-        if (Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
-        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
-        if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
+        // Replace state instead of merging to avoid mixing barbers' data
+        setHighlights({ ...(counts || {}), ...(nCounts || {}) });
+        setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
         // Prefill first available selection and slots when picking a barber
         const first = data?.firstAvailable;
         if (first && !date) {
@@ -244,7 +243,7 @@ export default function BookingModal({ open, onClose }) {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => { setBarber(b.id); setDate(""); setTime(""); }}
+                    onClick={() => { setBarber(b.id); setDate(""); setTime(""); setHighlights({}); setSlotsByDate({}); }}
                     className="relative p-4 border border-white/20 rounded-lg text-left hover:bg-white/5"
                   >
                     <div className="h-32 w-full bg-white/10 rounded mb-3" />
