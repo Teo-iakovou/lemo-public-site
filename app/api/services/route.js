@@ -3,6 +3,5 @@ export async function GET() {
   const services = [
     { id: "haircut", name: "Haircut", price: 15, duration: 40 },
   ];
-  return Response.json(services, { status: 200 });
+  return Response.json(services, { status: 200, headers: { 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400' } });
 }
-

@@ -129,12 +129,20 @@ export default function BookingModal({ open, onClose }) {
       const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       const nextMonthStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
       try {
-        const data = await getHorizonAvailability({ start: currMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' });
+        // Fetch current and next month in parallel for snappier load
+        const [data, nxt] = await Promise.all([
+          getHorizonAvailability({ start: currMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' }),
+          getHorizonAvailability({ start: nextMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
+        ]);
         if (aborted) return;
         const counts = data?.counts || {};
-        setHighlights((prev) => ({ ...prev, ...counts }));
         const map = data?.slots || {};
-        setSlotsByDate((prev) => ({ ...prev, ...map }));
+        const nCounts = nxt?.counts || {};
+        const nMap = nxt?.slots || {};
+        if (Object.keys(counts).length) setHighlights((prev) => ({ ...prev, ...counts }));
+        if (Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
+        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
+        if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
         // Prefill first available selection and slots when picking a barber
         const first = data?.firstAvailable;
         if (first && !date) {
@@ -142,16 +150,6 @@ export default function BookingModal({ open, onClose }) {
           setSlots(Array.isArray(first.slots) ? first.slots : []);
           setLoadingSlots(false);
         }
-        // Background prefetch of next month to make Next instant
-        getHorizonAvailability({ start: nextMonthStart, days: 35, barber: toGreekBarber(barber), include: 'slots' })
-          .then((nxt) => {
-            if (aborted || !nxt) return;
-            const nCounts = nxt?.counts || {};
-            const nMap = nxt?.slots || {};
-            if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
-            if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
-          })
-          .catch(() => {});
       } catch (_) {
         if (!aborted) setHighlights({});
       } finally {

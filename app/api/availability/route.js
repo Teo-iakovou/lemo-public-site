@@ -55,7 +55,7 @@ export async function GET(request) {
   const barberRaw = searchParams.get("barber") || ""; // e.g., ΛΕΜΟ | ΦΟΡΟΥ
   const barber = barberRaw.toLowerCase();
   // const serviceId = searchParams.get("serviceId");
-  if (!date) return Response.json({ slots: [] }, { status: 200 });
+  if (!date) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
 
   const base = BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
@@ -63,13 +63,13 @@ export async function GET(request) {
 
   const day = parseLocalDate(date);
   const win = businessWindow(day);
-  if (!win) return Response.json({ slots: [] }, { status: 200 });
+  if (!win) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
 
   // Do not allow booking in the past (e.g., yesterday)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (toYMD(day) < toYMD(today)) {
-    return Response.json({ slots: [] }, { status: 200 });
+    return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
   }
 
   // Serve from cache when possible
@@ -136,5 +136,5 @@ export async function GET(request) {
   const out = free.map((s) => s.label);
   // Store in cache
   CACHE.set(cacheKey, { ts: Date.now(), slots: out });
-  return Response.json({ slots: out }, { status: 200 });
+  return Response.json({ slots: out }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
 }

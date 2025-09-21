@@ -60,7 +60,7 @@ export async function GET(request) {
   const cacheKey = `${start}|${days}|${barber}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json(hit.data, { status: 200 });
+    return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
   }
 
   const startDate = parseYMD(start);
@@ -121,7 +121,7 @@ export async function GET(request) {
         }
         const payload = { counts, slots: slotsMap, firstAvailable };
         CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200 });
+        return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
       }
     } catch {}
   }
@@ -138,7 +138,7 @@ export async function GET(request) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
         CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200 });
+        return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
       }
     } catch {}
   }
@@ -210,5 +210,5 @@ export async function GET(request) {
 
   const payload = slotsMap ? { counts: { ...result }, slots: slotsMap } : { counts: { ...result } };
   CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-  return Response.json(payload, { status: 200 });
+  return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
 }
