@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
-async function fetchMonth(start, barber) {
+async function fetchMonth(start, barberId) {
   const qs = new URLSearchParams({ start, days: String(new Date(new Date(start).getFullYear(), new Date(start).getMonth()+1, 0).getDate()), include: 'slots' });
-  if (barber) qs.set('barber', barber);
+  if (barberId) qs.set('barberId', barberId);
   const res = await fetch(`/api/availability/horizon?${qs.toString()}`, { cache: 'no-store' });
   if (!res.ok) return null;
   return res.json();
@@ -21,10 +21,10 @@ export default async function BookingSSRProvider() {
   const nextMonthStart = toMonthStart(next);
 
   const [lemoCurr, forouCurr, lemoNext, forouNext] = await Promise.all([
-    fetchMonth(monthStart, 'ΛΕΜΟ').catch(()=>null),
-    fetchMonth(monthStart, 'ΦΟΡΟΥ').catch(()=>null),
-    fetchMonth(nextMonthStart, 'ΛΕΜΟ').catch(()=>null),
-    fetchMonth(nextMonthStart, 'ΦΟΡΟΥ').catch(()=>null),
+    fetchMonth(monthStart, 'lemo').catch(()=>null),
+    fetchMonth(monthStart, 'forou').catch(()=>null),
+    fetchMonth(nextMonthStart, 'lemo').catch(()=>null),
+    fetchMonth(nextMonthStart, 'forou').catch(()=>null),
   ]);
 
   const initial = {

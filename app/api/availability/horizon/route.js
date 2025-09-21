@@ -53,11 +53,13 @@ export async function GET(request) {
   const include = (searchParams.get("include") || "").split(",").map((s) => s.trim()).filter(Boolean);
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
   const greekBarber = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || '');
+  const normalizedKey = barberId || (greekBarber === 'ΛΕΜΟ' ? 'lemo' : greekBarber === 'ΦΟΡΟΥ' ? 'forou' : '');
   // const serviceId = searchParams.get("serviceId"); // reserved
 
   if (!start) return Response.json({}, { status: 200 });
 
-  const cacheKey = `${start}|${days}|${barberId}|${include.sort().join(',')}`;
+  // IMPORTANT: include a stable barber key even when only Greek 'barber' is provided
+  const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
     return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
