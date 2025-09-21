@@ -7,6 +7,10 @@ import { getServices, getAvailability, getHorizonAvailability, createAppointment
 
 export default function BookingModal({ open, onClose }) {
   const router = useRouter();
+  const debugEnabled = (() => {
+    if (typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('debug') === '1'; } catch { return false; }
+  })();
   const [services, setServices] = useState([]);
   const serviceId = services[0]?.id || services[0]?._id || "";
 
@@ -71,6 +75,7 @@ export default function BookingModal({ open, onClose }) {
     async function run() {
       if (!serviceId || !date) return;
       const hasPre = Object.prototype.hasOwnProperty.call(slotsByDate, date);
+      if (debugEnabled) console.debug('[Booking] date-change', { barberId: toBarberId(barber), date, hasPre, preCount: hasPre ? (slotsByDate[date]?.length ?? 0) : undefined });
       if (hasPre) {
         if (mounted) {
           setSlots(slotsByDate[date]);
@@ -80,6 +85,7 @@ export default function BookingModal({ open, onClose }) {
       }
       setLoadingSlots(true);
       try {
+        if (debugEnabled) console.debug('[Booking] fetch per-day', { date, barberId: toBarberId(barber) });
         const res = await getAvailability({ serviceId, date, barberId: toBarberId(barber) });
         const arr = Array.isArray(res) ? res : res?.slots || [];
         if (mounted) {
@@ -162,6 +168,13 @@ export default function BookingModal({ open, onClose }) {
         const map = data?.slots || {};
         const nCounts = nxt?.counts || {};
         const nMap = nxt?.slots || {};
+        if (debugEnabled) console.debug('[Booking] horizon merge', {
+          barberId: toBarberId(barber),
+          currDays: Object.keys(counts).length,
+          nextDays: Object.keys(nCounts).length,
+          currSlotsDays: Object.keys(map).length,
+          nextSlotsDays: Object.keys(nMap).length,
+        });
         // Replace state instead of merging to avoid mixing barbers' data
         setHighlights({ ...(counts || {}), ...(nCounts || {}) });
         setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
@@ -171,6 +184,7 @@ export default function BookingModal({ open, onClose }) {
           setDate(first.date);
           setSlots(Array.isArray(first.slots) ? first.slots : []);
           setLoadingSlots(false);
+          if (debugEnabled) console.debug('[Booking] prefill firstAvailable', { date: first.date, count: (first.slots || []).length });
         }
       } catch (_) {
         if (!aborted) setHighlights({});

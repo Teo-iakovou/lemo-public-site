@@ -61,8 +61,15 @@ export async function GET(request) {
   // IMPORTANT: include a stable barber key even when only Greek 'barber' is provided
   const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
+  const noStoreHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Netlify-CDN-Cache-Control': 'no-store',
+    'Vary': 'barberId, barber, start, days, include',
+    'X-Debug-Barber-Key': normalizedKey,
+  };
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
+    return Response.json(hit.data, { status: 200, headers: noStoreHeaders });
   }
 
   const startDate = parseYMD(start);
@@ -84,7 +91,7 @@ export async function GET(request) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
         CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
+        return Response.json(payload, { status: 200, headers: noStoreHeaders });
       }
     } catch {}
   }
@@ -92,5 +99,5 @@ export async function GET(request) {
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
   CACHE.set(cacheKey, { ts: Date.now(), data: empty });
-  return Response.json(empty, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
+  return Response.json(empty, { status: 200, headers: noStoreHeaders });
 }

@@ -51,13 +51,24 @@ function overlaps(aStart, aDur, bStart, bDur) {
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
+  const debugMode = searchParams.get("debug") === "1";
+  const dbg = {};
   const date = searchParams.get("date");
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
   const barberRaw = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || "");
   // Normalize to Greek lowercase for local comparisons (matches backend data)
   const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
+  if (debugMode) {
+    dbg.query = { date, barberId, barberRaw, greekLower };
+  }
   // const serviceId = searchParams.get("serviceId");
-  if (!date) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
+  const noStoreHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Netlify-CDN-Cache-Control': 'no-store',
+    'Vary': 'barberId, barber, date, serviceId',
+  };
+  if (!date) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'no-date' } } : {}) }, { status: 200, headers: noStoreHeaders });
 
   const base = BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
@@ -65,20 +76,21 @@ export async function GET(request) {
 
   const day = parseLocalDate(date);
   const win = businessWindow(day);
-  if (!win) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
+  if (!win) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: noStoreHeaders });
 
   // Do not allow booking in the past (e.g., yesterday)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (toYMD(day) < toYMD(today)) {
-    return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
+    return Response.json({ slots: [] }, { status: 200, headers: noStoreHeaders });
   }
 
   // Serve from cache when possible
   const cacheKey = `${date}|${barberId || barberRaw}`;
+  if (debugMode) dbg.cacheKey = cacheKey;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json({ slots: hit.slots }, { status: 200, headers: { 'Vary': 'barberId, barber, date, serviceId' } });
+    return Response.json({ slots: hit.slots, ...(debugMode ? { debug: { ...dbg, cache: 'hit' } } : {}) }, { status: 200, headers: noStoreHeaders });
   }
 
   // Fetch existing appointments for just this day (and barber if provided)
@@ -88,14 +100,17 @@ export async function GET(request) {
       const qs = new URLSearchParams({ from: date, to: date });
       // Backend expects Greek barber; do not send barberId
       if (barberRaw) qs.set("barber", barberRaw);
-      const res = await fetch(`${base}/api/appointments/range?${qs.toString()}`);
+      const backendURL = `${base}/api/appointments/range?${qs.toString()}`;
+      if (debugMode) dbg.backendURL = backendURL;
+      const res = await fetch(backendURL);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
         // If backend returns any break for this date, treat the day as fully blocked
         const hasBreak = list.some((a) => a?.type === 'break' && toYMD(new Date(a.appointmentDateTime || a.start)) === date);
+        if (debugMode) dbg.hasBreak = !!hasBreak;
         if (hasBreak) {
-          return Response.json({ slots: [] }, { status: 200, headers: { 'Vary': 'barberId, barber, date, serviceId' } });
+          return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: noStoreHeaders });
         }
         existing = list
           .filter((a) => a?.appointmentDateTime || a?.start)
@@ -110,6 +125,7 @@ export async function GET(request) {
           .filter((a) => toYMD(a.start) === date)
           // Compare using Greek lowercase id (backend data is Greek)
           .filter((a) => !greekLower || !a.barber || a.barber === greekLower);
+        if (debugMode) dbg.existingCount = existing.length;
       }
     }
   } catch {
@@ -126,6 +142,7 @@ export async function GET(request) {
       return overlaps(startMinutes, duration, bStartMinutes, b.duration);
     });
   });
+  if (debugMode) dbg.candidates = candidates.length, dbg.free = free.length;
 
   // Apply cutoff if date is today (no booking inside next 60')
   const now = new Date();
@@ -135,10 +152,11 @@ export async function GET(request) {
     for (let i = free.length - 1; i >= 0; i--) {
       if (free[i].start < cutoff) free.splice(i, 1);
     }
+    if (debugMode) dbg.freeAfterCutoff = free.length;
   }
 
   const out = free.map((s) => s.label);
   // Store in cache
   CACHE.set(cacheKey, { ts: Date.now(), slots: out });
-  return Response.json({ slots: out }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
+  return Response.json({ slots: out, ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: noStoreHeaders });
 }
