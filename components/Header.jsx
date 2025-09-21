@@ -16,7 +16,7 @@ export default function Header() {
         </Link>
         <nav className="hidden sm:flex items-center gap-6 text-sm">
           <Link href="#services" className="hover:opacity-80">Services</Link>
-          <Link href="#hours" className="hover:opacity-80">Hours</Link>
+          <Link href="#booking-hours" className="hover:opacity-80">Hours</Link>
           <Link href="#location" className="hover:opacity-80">Location</Link>
           <Link href="#footer" className="hover:opacity-80">Contact</Link>
         </nav>

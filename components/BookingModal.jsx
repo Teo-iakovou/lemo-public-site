@@ -205,6 +205,7 @@ export default function BookingModal({ open, onClose }) {
       setBarber("");
       setDate("");
       setTime("");
+      setLastTime("");
       setSlots([]);
       setSlotsByDate({});
       setHighlights({});
@@ -213,6 +214,9 @@ export default function BookingModal({ open, onClose }) {
       setBlockCalendar(false);
       setError("");
       setSubmitting(false);
+      setName("");
+      setPhone("");
+      setEmail("");
     }
   }, [open]);
 
@@ -263,7 +267,19 @@ export default function BookingModal({ open, onClose }) {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => { setBarber(b.id); setDate(""); setTime(""); setHighlights({}); setSlotsByDate({}); }}
+                    onClick={() => {
+                      // Reset selections
+                      setBarber(b.id);
+                      setDate("");
+                      setTime("");
+                      setLastTime("");
+                      setHighlights({});
+                      setSlotsByDate({});
+                      // Force a smoother transition: show spinner first, then fade calendar in
+                      setLoadingHints(true);
+                      setLoadingMonth(false);
+                      setBlockCalendar(true);
+                    }}
                     className="relative p-4 border border-white/20 rounded-lg text-left hover:bg-white/5"
                   >
                     <div className="h-32 w-full bg-white/10 rounded mb-3" />
@@ -278,7 +294,11 @@ export default function BookingModal({ open, onClose }) {
           {/* Left: Calendar */}
           {barber && !time && (
           <div className="relative">
-            <div className={blockCalendar ? 'opacity-0 pointer-events-none' : ''}>
+            <div
+              className={`transition-opacity duration-300 ease-out ${
+                blockCalendar ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
               <Calendar
                 value={date}
               onChange={(ds) => {
@@ -341,7 +361,7 @@ export default function BookingModal({ open, onClose }) {
               />
             </div>
             {(blockCalendar && (loadingMonth || loadingHints)) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity duration-200 ease-out opacity-100">
                 <div
                   aria-label="Loading availability"
                   className="h-6 w-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"
@@ -391,11 +411,41 @@ export default function BookingModal({ open, onClose }) {
                     )}
                   </div>
                 }
+                {/* Bottom-right Next button to proceed back to form with last selected time */}
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={!lastTime}
+                    onClick={() => lastTime && setTime(lastTime)}
+                    className={`px-4 py-2 rounded-md ${
+                      lastTime
+                        ? "bg-white text-black hover:bg-neutral-200"
+                        : "bg-neutral-400 text-white/80 cursor-not-allowed"
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
 
             {time && (
             <form className="grid gap-3 mt-4" onSubmit={(e) => e.preventDefault()}>
+              {/* Selection summary */}
+              <div className="p-3 border border-white/10 rounded-md bg-white/5 text-sm flex flex-wrap gap-x-4 gap-y-1">
+                <div>
+                  <span className="text-neutral-400">Barber:</span> {barber || '-'}
+                </div>
+                <div>
+                  <span className="text-neutral-400">Date:</span> {date ? new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' }) : '-'}
+                </div>
+                <div>
+                  <span className="text-neutral-400">Time:</span> {time || '-'}
+                </div>
+                <div>
+                  <span className="text-neutral-400">Service:</span> {services[0]?.name || 'Haircut'}
+                </div>
+              </div>
               <label className="block">
                 <span className="text-sm">Name</span>
                 <input
