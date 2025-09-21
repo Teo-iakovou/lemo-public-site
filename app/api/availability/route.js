@@ -57,7 +57,7 @@ export async function GET(request) {
   // Normalize to Greek lowercase for local comparisons (matches backend data)
   const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
   // const serviceId = searchParams.get("serviceId");
-  if (!date) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
+  if (!date) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
 
   const base = BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
@@ -65,20 +65,20 @@ export async function GET(request) {
 
   const day = parseLocalDate(date);
   const win = businessWindow(day);
-  if (!win) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
+  if (!win) return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
 
   // Do not allow booking in the past (e.g., yesterday)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (toYMD(day) < toYMD(today)) {
-    return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
+    return Response.json({ slots: [] }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
   }
 
   // Serve from cache when possible
   const cacheKey = `${date}|${barberId || barberRaw}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json({ slots: hit.slots }, { status: 200 });
+    return Response.json({ slots: hit.slots }, { status: 200, headers: { 'Vary': 'barberId, barber, date, serviceId' } });
   }
 
   // Fetch existing appointments for just this day (and barber if provided)
@@ -88,14 +88,14 @@ export async function GET(request) {
       const qs = new URLSearchParams({ from: date, to: date });
       // Backend expects Greek barber; do not send barberId
       if (barberRaw) qs.set("barber", barberRaw);
-      const res = await fetch(`${base}/api/appointments/range?${qs.toString()}`, { cache: "no-store" });
+      const res = await fetch(`${base}/api/appointments/range?${qs.toString()}`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
         // If backend returns any break for this date, treat the day as fully blocked
         const hasBreak = list.some((a) => a?.type === 'break' && toYMD(new Date(a.appointmentDateTime || a.start)) === date);
         if (hasBreak) {
-          return Response.json({ slots: [] }, { status: 200 });
+          return Response.json({ slots: [] }, { status: 200, headers: { 'Vary': 'barberId, barber, date, serviceId' } });
         }
         existing = list
           .filter((a) => a?.appointmentDateTime || a?.start)
@@ -140,5 +140,5 @@ export async function GET(request) {
   const out = free.map((s) => s.label);
   // Store in cache
   CACHE.set(cacheKey, { ts: Date.now(), slots: out });
-  return Response.json({ slots: out }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
+  return Response.json({ slots: out }, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, date, serviceId' } });
 }

@@ -62,7 +62,7 @@ export async function GET(request) {
   const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
+    return Response.json(hit.data, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
   }
 
   const startDate = parseYMD(start);
@@ -84,7 +84,7 @@ export async function GET(request) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
         CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600' } });
+        return Response.json(payload, { status: 200, headers: { 'Cache-Control': 's-maxage=180, stale-while-revalidate=600', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
       }
     } catch {}
   }
@@ -92,5 +92,5 @@ export async function GET(request) {
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
   CACHE.set(cacheKey, { ts: Date.now(), data: empty });
-  return Response.json(empty, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } });
+  return Response.json(empty, { status: 200, headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300', 'Vary': 'barberId, barber, start, days, include', 'X-Debug-Barber-Key': normalizedKey } });
 }
