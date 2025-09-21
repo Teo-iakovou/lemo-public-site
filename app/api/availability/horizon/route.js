@@ -17,34 +17,34 @@ function parseYMD(s) {
   return new Date(y, m - 1, d);
 }
 
-function businessWindow(date) {
-  const dow = date.getDay();
-  // Closed Sun (0) and Mon (1)
-  if (dow === 0 || dow === 1) return null;
-  // Saturday until 17:40, Tue–Fri until 19:00
-  if (dow === 6) return { open: 9 * 60, close: 17 * 60 + 40 };
-  return { open: 9 * 60, close: 19 * 60 };
-}
+// function businessWindow(date) {
+//   const dow = date.getDay();
+//   // Closed Sun (0) and Mon (1)
+//   if (dow === 0 || dow === 1) return null;
+//   // Saturday until 17:40, Tue–Fri until 19:00
+//   if (dow === 6) return { open: 9 * 60, close: 17 * 60 + 40 };
+//   return { open: 9 * 60, close: 19 * 60 };
+// }
 
-function generateSlots({ date, duration = 40, step = 40 }) {
-  const win = businessWindow(date);
-  if (!win) return [];
-  const out = [];
-  const breakStart = 13 * 60; // 13:00
-  const breakEnd = 14 * 60; // 14:00
-  for (let t = win.open; t + duration <= win.close; t += step) {
-    const overlapsBreak = !(t + duration <= breakStart || breakEnd <= t);
-    if (overlapsBreak) continue;
-    out.push(t);
-  }
-  return out;
-}
+// function generateSlots({ date, duration = 40, step = 40 }) {
+//   const win = businessWindow(date);
+//   if (!win) return [];
+//   const out = [];
+//   const breakStart = 13 * 60; // 13:00
+//   const breakEnd = 14 * 60; // 14:00
+//   for (let t = win.open; t + duration <= win.close; t += step) {
+//     const overlapsBreak = !(t + duration <= breakStart || breakEnd <= t);
+//     if (overlapsBreak) continue;
+//     out.push(t);
+//   }
+//   return out;
+// }
 
-function overlaps(aStart, aDur, bStart, bDur) {
-  const aEnd = aStart + aDur;
-  const bEnd = bStart + bDur;
-  return aStart < bEnd && bStart < aEnd;
-}
+// function overlaps(aStart, aDur, bStart, bDur) {
+//   const aEnd = aStart + aDur;
+//   const bEnd = bStart + bDur;
+//   return aStart < bEnd && bStart < aEnd;
+// }
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -74,7 +74,8 @@ export async function GET(request) {
       const qs = new URLSearchParams({ from, to });
       if (barberRaw) qs.set("barber", barberRaw);
       if (include.includes('slots')) qs.set('include', 'slots');
-      const res = await fetch(`${BACKEND_BASE_URL}/api/availability/month?${qs.toString()}`, { cache: 'no-store' });
+      // Allow backend Cache-Control (s-maxage, stale-while-revalidate) to be honored
+      const res = await fetch(`${BACKEND_BASE_URL}/api/availability/month?${qs.toString()}`);
       if (res.ok) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
