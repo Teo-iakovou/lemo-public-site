@@ -106,22 +106,39 @@ export default function BookingModal({ open, onClose }) {
       try {
         if (initial) {
           const key = barber === 'Lemo' ? 'LEMO' : 'FOROU';
-          const bundle = initial[key];
-          if (bundle && bundle.counts) {
-            setHighlights(bundle.counts);
-            if (bundle.firstAvailable && !date) {
-              setDate(bundle.firstAvailable.date);
-              const s = Array.isArray(bundle.firstAvailable.slots) ? bundle.firstAvailable.slots : [];
-              setSlots(s);
-              setSlotsByDate((m) => ({ ...m, [bundle.firstAvailable.date]: s }));
-            }
+          const pack = initial[key];
+          // Support both old (direct bundle) and new (current/next) shapes
+          const bundles = [];
+          if (pack && (pack.current || pack.next)) {
+            if (pack.current) bundles.push(pack.current);
+            if (pack.next) bundles.push(pack.next);
+          } else if (pack) {
+            bundles.push(pack);
+          }
+          for (const bundle of bundles) {
+            if (bundle && bundle.counts) setHighlights((prev) => ({ ...prev, ...bundle.counts }));
+            const map = bundle?.slots || {};
+            if (map && Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
+          }
+          // Seed firstAvailable from current month only when not preset
+          const current = pack?.current || pack; // prefer current
+          if (current && current.firstAvailable && !date) {
+            setDate(current.firstAvailable.date);
+            const s = Array.isArray(current.firstAvailable.slots) ? current.firstAvailable.slots : [];
+            setSlots(s);
+            setSlotsByDate((m) => ({ ...m, [current.firstAvailable.date]: s }));
           }
         }
       } catch {}
 
       // If we don't yet have counts, block calendar and show spinner first
       setLoadingHints(true);
-      if (!initial || !initial[(barber === 'Lemo' ? 'LEMO' : 'FOROU')]?.counts) {
+      const initKey = barber === 'Lemo' ? 'LEMO' : 'FOROU';
+      const hasCounts = initial && (
+        (initial[initKey]?.current && initial[initKey].current.counts) ||
+        (initial[initKey]?.counts)
+      );
+      if (!hasCounts) {
         setBlockCalendar(true);
       }
       // Fetch full current month and prefetch next month in background

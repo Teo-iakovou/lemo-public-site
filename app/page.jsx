@@ -19,8 +19,9 @@ export default function Home() {
   const ADDRESS = "Parodos Elia Venezi 25A, 4180 Ypsonas";
   const LAT = 34.6881935;
   const LNG = 32.9566240;
+  // Use precise coordinates, but display the address as the label
   const MAPS_URL =
-    "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${LAT},${LNG}`);
+    "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${LAT},${LNG} (${ADDRESS})`);
   // Public asset hero image (placed in public/)
   const HERO_URL = "/LemoBarberShop.JPG";
   return (
@@ -115,7 +116,8 @@ export default function Home() {
               className="w-full h-full"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              src={`https://www.google.com/maps?q=loc:${LAT},${LNG}&z=16&output=embed`}
+              // Embed with coordinates for accuracy but show the address as label
+              src={`https://www.google.com/maps?q=${encodeURIComponent(`loc:${LAT},${LNG} (${ADDRESS})`)}&z=16&output=embed`}
             />
             <div className="absolute top-2 right-2">
               <a

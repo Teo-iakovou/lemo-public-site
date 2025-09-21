@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 async function fetchMonth(start, barber) {
-  const qs = new URLSearchParams({ start, days: String(new Date(new Date(start).getFullYear(), new Date(start).getMonth()+1, 0).getDate()) });
+  const qs = new URLSearchParams({ start, days: String(new Date(new Date(start).getFullYear(), new Date(start).getMonth()+1, 0).getDate()), include: 'slots' });
   if (barber) qs.set('barber', barber);
   const res = await fetch(`/api/availability/horizon?${qs.toString()}`, { cache: 'no-store' });
   if (!res.ok) return null;
@@ -17,9 +17,22 @@ function toMonthStart(d) {
 export default async function BookingSSRProvider() {
   const now = new Date();
   const monthStart = toMonthStart(now);
-  const lemo = await fetchMonth(monthStart, 'ΛΕΜΟ').catch(()=>null);
-  const forou = await fetchMonth(monthStart, 'ΦΟΡΟΥ').catch(()=>null);
-  const initial = { monthStart, LEMO: lemo || null, FOROU: forou || null };
+  const next = new Date(now.getFullYear(), now.getMonth()+1, 1);
+  const nextMonthStart = toMonthStart(next);
+
+  const [lemoCurr, forouCurr, lemoNext, forouNext] = await Promise.all([
+    fetchMonth(monthStart, 'ΛΕΜΟ').catch(()=>null),
+    fetchMonth(monthStart, 'ΦΟΡΟΥ').catch(()=>null),
+    fetchMonth(nextMonthStart, 'ΛΕΜΟ').catch(()=>null),
+    fetchMonth(nextMonthStart, 'ΦΟΡΟΥ').catch(()=>null),
+  ]);
+
+  const initial = {
+    monthStart,
+    nextMonthStart,
+    LEMO: { current: lemoCurr || null, next: lemoNext || null },
+    FOROU: { current: forouCurr || null, next: forouNext || null },
+  };
   const json = JSON.stringify(initial).replace(/</g, '\\u003c');
   return (
     <script
