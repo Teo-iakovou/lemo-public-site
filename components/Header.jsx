@@ -10,7 +10,7 @@ export default function Header() {
   }, []);
   return (
     <header className="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-black/40 bg-black/70 border-b border-white/10">
-      <div className="container-xl flex h-16 items-center justify-between">
+      <div className="container-xl flex h-16 items-center justify-center sm:justify-between">
         <Link href="/" className="font-display text-2xl tracking-wide">
           LEMO
         </Link>
@@ -20,7 +20,7 @@ export default function Header() {
           <Link href="#location" className="hover:opacity-80">Location</Link>
           <Link href="#footer" className="hover:opacity-80">Contact</Link>
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-3">
           <button onClick={onBookNow} className="btn btn-primary">Book Now</button>
         </div>
       </div>

@@ -20,6 +20,7 @@ export default function BookingModal({ open, onClose }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [time, setTime] = useState("");
+  const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -327,27 +328,35 @@ export default function BookingModal({ open, onClose }) {
                     {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}
                   </span>
                 </div>
-                {(
+                {
                   <div className="flex flex-wrap gap-2">
                     {slots.map((t) => (
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setTime(t)}
-                        className={`px-3 py-2 rounded-md border text-sm ${
-                          time === t
-                            ? "border-white bg-white text-black"
+                        onClick={() => { setTime(t); setLastTime(t); }}
+                        className={`relative px-3 py-2 rounded-md border text-sm ${
+                          (time ? time === t : lastTime === t)
+                            ? "border-2 border-purple-500 text-white bg-purple-600/20 shadow-[0_0_0_2px_rgba(168,85,247,0.4)]"
                             : "border-white/20 hover:bg-white/10"
                         }`}
                       >
                         {t}
+                        {(time ? time === t : lastTime === t) && (
+                          <span
+                            aria-hidden
+                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-500 text-black flex items-center justify-center text-[10px]"
+                          >
+                            ✓
+                          </span>
+                        )}
                       </button>
                     ))}
                     {(!loadingSlots && slots.length === 0) && (
                       <p className="text-sm text-neutral-400">No free slots</p>
                     )}
                   </div>
-                )}
+                }
               </div>
             )}
 
@@ -383,14 +392,27 @@ export default function BookingModal({ open, onClose }) {
                 />
               </label>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <button
-                type="button"
-                disabled={!serviceId || !date || !time || !name || !phone || submitting}
-                onClick={onConfirm}
-                className="mt-1 px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
-              >
-                {submitting ? "Booking…" : "Confirm and book"}
-              </button>
+              <div className="mt-6 flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setTime("")}
+                  className="px-3 py-2 rounded-md border border-white/20 text-white hover:bg-white/10 inline-flex items-center gap-2"
+                  aria-label="Back to times"
+                  title="Back"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path fillRule="evenodd" d="M10.78 3.22a.75.75 0 0 1 0 1.06L5.56 9.5H17a.75.75 0 0 1 0 1.5H5.56l5.22 5.22a.75.75 0 1 1-1.06 1.06l-6.5-6.5a.75.75 0 0 1 0-1.06l6.5-6.5a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  disabled={!serviceId || !date || !time || !name || !phone || submitting}
+                  onClick={onConfirm}
+                  className="ml-auto px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Booking…" : "Confirm and book"}
+                </button>
+              </div>
             </form>
             )}
           </div>
