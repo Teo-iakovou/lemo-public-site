@@ -15,6 +15,7 @@ export default function BookingModal({ open, onClose }) {
   const serviceId = services[0]?.id || services[0]?._id || "";
 
   const [barber, setBarber] = useState("");
+  const [barberChoice, setBarberChoice] = useState("");
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState([]);
   const [slotsByDate, setSlotsByDate] = useState({});
@@ -27,6 +28,8 @@ export default function BookingModal({ open, onClose }) {
   const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
+  const [render, setRender] = useState(false);
 
   const HORIZON_DAYS = 14;
   const today = useMemo(() => {
@@ -67,6 +70,21 @@ export default function BookingModal({ open, onClose }) {
     return () => {
       mounted = false;
     };
+  }, [open]);
+
+  // Smooth pop-in animation on open
+  useEffect(() => {
+    if (open) {
+      setRender(true);
+      setAnimateIn(false);
+      const id = requestAnimationFrame(() => setAnimateIn(true));
+      return () => cancelAnimationFrame(id);
+    } else {
+      // Animate out, then unmount after transition
+      setAnimateIn(false);
+      const timeout = setTimeout(() => setRender(false), 300);
+      return () => clearTimeout(timeout);
+    }
   }, [open]);
 
   // Load slots when date changes (use preloaded map when available)
@@ -203,6 +221,7 @@ export default function BookingModal({ open, onClose }) {
   useEffect(() => {
     if (!open) {
       setBarber("");
+      setBarberChoice("");
       setDate("");
       setTime("");
       setLastTime("");
@@ -241,15 +260,20 @@ export default function BookingModal({ open, onClose }) {
     }
   }
 
-  if (!open) return null;
+  if (!render) return null;
 
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div
+        className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
+        onClick={onClose}
+      />
 
       {/* Panel: full screen on mobile, centered card on larger screens */}
-      <div className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden">
+      <div
+        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden transform transition-transform transition-opacity duration-300 ease-out ${animateIn ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
           <div className="font-display text-lg">Book an appointment</div>
@@ -267,26 +291,34 @@ export default function BookingModal({ open, onClose }) {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => {
-                      // Reset selections
-                      setBarber(b.id);
-                      setDate("");
-                      setTime("");
-                      setLastTime("");
-                      setHighlights({});
-                      setSlotsByDate({});
-                      // Force a smoother transition: show spinner first, then fade calendar in
-                      setLoadingHints(true);
-                      setLoadingMonth(false);
-                      setBlockCalendar(true);
-                    }}
-                    className="relative p-4 border border-white/20 rounded-lg text-left hover:bg-white/5"
+                    onClick={() => setBarberChoice(b.id)}
+                    className={`relative p-4 border rounded-lg text-left hover:bg-white/5 ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
                   >
                     <div className="h-32 w-full bg-white/10 rounded mb-3" />
                     <div className="font-semibold">{b.name}</div>
                     <div className="text-sm text-neutral-300">Tap to select</div>
                   </button>
                 ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!barberChoice}
+                  onClick={() => {
+                    setBarber(barberChoice);
+                    setDate("");
+                    setTime("");
+                    setLastTime("");
+                    setHighlights({});
+                    setSlotsByDate({});
+                    setLoadingHints(true);
+                    setLoadingMonth(false);
+                    setBlockCalendar(true);
+                  }}
+                  className={`px-4 py-2 rounded-md ${barberChoice ? 'bg-white text-black hover:bg-neutral-200' : 'bg-neutral-400 text-white/80 cursor-not-allowed'}`}
+                >
+                  Next
+                </button>
               </div>
             </div>
           )}
@@ -368,6 +400,7 @@ export default function BookingModal({ open, onClose }) {
                 />
               </div>
             )}
+            
           </div>
           )}
 
@@ -388,12 +421,12 @@ export default function BookingModal({ open, onClose }) {
                       <button
                         key={t}
                         type="button"
-                        onClick={() => { setTime(t); setLastTime(t); }}
+                        onClick={() => { setLastTime(t); }}
                         className={`relative px-3 py-2 rounded-md border text-sm ${
                           (time ? time === t : lastTime === t)
                             ? "border-2 border-purple-500 text-white bg-purple-600/20 shadow-[0_0_0_2px_rgba(168,85,247,0.4)]"
                             : "border-white/20 hover:bg-white/10"
-                        }`}
+                          }`}
                       >
                         {t}
                         {(time ? time === t : lastTime === t) && (
@@ -411,19 +444,42 @@ export default function BookingModal({ open, onClose }) {
                     )}
                   </div>
                 }
-                {/* Bottom-right Next button to proceed back to form with last selected time */}
-                <div className="mt-4 flex justify-end">
+                {/* Bottom controls under time slots: Prev (left) and Next (right) */}
+                <div className="mt-4 flex items-center justify-between">
+                  {/* Prev: back to barber selection */}
+                  <button
+                    type="button"
+                    onClick={() => { 
+                      setBarber("");
+                      setBarberChoice("");
+                      setDate(""); 
+                      setTime(""); 
+                      setLastTime(""); 
+                      setBlockCalendar(false);
+                    }}
+                    className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-white/20 hover:bg-white/10"
+                    aria-label="Back to barber"
+                    title="Back"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path fillRule="evenodd" d="M12.78 16.28a.75.75 0 0 1-1.06 0l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 1 1 1.06 1.06L7.81 9.25H16a.75.75 0 0 1 0 1.5H7.81l4.97 4.97a.75.75 0 0 1 0 1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     disabled={!lastTime}
                     onClick={() => lastTime && setTime(lastTime)}
-                    className={`px-4 py-2 rounded-md ${
+                    className={`h-9 w-9 inline-flex items-center justify-center rounded-md ${
                       lastTime
                         ? "bg-white text-black hover:bg-neutral-200"
                         : "bg-neutral-400 text-white/80 cursor-not-allowed"
                     }`}
+                    aria-label="Next"
+                    title="Next"
                   >
-                    Next
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path fillRule="evenodd" d="M7.22 3.72a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L12.19 10.75H4a.75.75 0 0 1 0-1.5h8.19L7.22 4.78a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
                   </button>
                 </div>
               </div>

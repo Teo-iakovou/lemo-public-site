@@ -70,55 +70,73 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
   const canNext = startOfMonth(cursor) < startOfMonth(max);
 
   return (
-    <div className="border border-white/10 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-white/5">
-        <button
-          type="button"
-          onClick={() => {
-            if (!canPrev) return;
-            const nextCur = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
-            setCursor(nextCur);
-            onMonthChange && onMonthChange(new Date(nextCur.getFullYear(), nextCur.getMonth(), 1));
-          }}
-          disabled={!canPrev}
-          className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
-        >
-          Prev
-        </button>
-        <div className="font-display text-lg">
-          {cursor.toLocaleString(undefined, { month: "long", year: "numeric" })}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!canNext) return;
-            const nextCur = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-            setCursor(nextCur);
-            onMonthChange && onMonthChange(new Date(nextCur.getFullYear(), nextCur.getMonth(), 1));
-          }}
-          disabled={!canNext}
-          className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
-        >
-          Next
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-px bg-white/10">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="bg-black/60 text-center py-2 text-xs uppercase tracking-wider">
-            {d}
+    <div className="relative border border-white/10 rounded-lg overflow-hidden">
+      {/* Subtle logo background */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: "url(/LemoLogo.png)",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          backgroundSize: "60%",
+          opacity: 0.06,
+          filter: "grayscale(100%)",
+        }}
+      />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between px-4 py-3 bg-white/5">
+          <button
+            type="button"
+            onClick={() => {
+              if (!canPrev) return;
+              const nextCur = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
+              setCursor(nextCur);
+              onMonthChange && onMonthChange(new Date(nextCur.getFullYear(), nextCur.getMonth(), 1));
+            }}
+            disabled={!canPrev}
+            className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <div className="font-display text-lg">
+            {cursor.toLocaleString(undefined, { month: "long", year: "numeric" })}
           </div>
-        ))}
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!canNext) return;
+              const nextCur = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+              setCursor(nextCur);
+              onMonthChange && onMonthChange(new Date(nextCur.getFullYear(), nextCur.getMonth(), 1));
+            }}
+            disabled={!canNext}
+            className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
 
-      <div className="grid grid-cols-7 gap-px bg-white/10">
-        {month.weeks.map((row, r) =>
-          row.map((d, i) => {
+        <div className="grid grid-cols-7 gap-px bg-white/10">
+          {WEEKDAYS.map((d) => (
+            <div key={d} className="bg-black/60 text-center py-2 text-xs uppercase tracking-wider">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-px bg-white/10">
+          {month.weeks.map((row, r) =>
+            row.map((d, i) => {
             const ds = toYMD(d);
             const inMonth = d.getMonth() === cursor.getMonth();
+            // Allow first 5 days of the next month to appear/select in current view
+            const nm = (cursor.getMonth() + 1) % 12;
+            const ny = cursor.getMonth() === 11 ? cursor.getFullYear() + 1 : cursor.getFullYear();
+            const isNextMonthFirst6 = d.getFullYear() === ny && d.getMonth() === nm && d.getDate() <= 5;
+            const inDisplay = inMonth || isNextMonthFirst6;
             const isSel = selected && toYMD(selected) === ds;
-            // Disallow selecting days from adjacent months when viewing a month
-            const disabled = isDisabled(d) || !inMonth;
+            // Allow selecting days within current month and first 6 days of next month
+            const disabled = isDisabled(d) || !inDisplay;
             const count = highlights[ds] ?? null;
             const values = Object.values(highlights).filter((v) => typeof v === "number" && v > 0);
             const max = values.length ? Math.max(...values) : 0;
@@ -150,7 +168,7 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
                 disabled={disabled}
                 onClick={() => onChange && onChange(ds)}
                 className={`relative h-12 sm:h-14 md:h-16 text-sm flex flex-col items-center justify-center ${
-                  inMonth ? "" : "opacity-40"
+                  inDisplay ? "" : "opacity-40"
                 } ${
                   isSel
                     ? "bg-transparent text-white font-bold text-base sm:text-lg"
@@ -159,8 +177,8 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
               >
                 <span>{d.getDate()}</span>
                 {(
-                  // Show bars only for today/future and not on closed days, and only within current visible month
-                  inMonth && (ds >= toYMD(today)) && !isClosedDay && (count !== null)
+                  // Show bars only for today/future and not on closed days, and within displayed range
+                  inDisplay && (ds >= toYMD(today)) && !isClosedDay && (count !== null)
                 ) && (
                   <span
                     className={`absolute bottom-1 left-0 h-1 rounded ${barCls}`}
@@ -169,8 +187,9 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
                 )}
               </button>
             );
-          })
-        )}
+            })
+          )}
+        </div>
       </div>
     </div>
   );

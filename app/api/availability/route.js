@@ -30,14 +30,11 @@ function slotify({ date, duration = 40, step = 40 }) {
   const win = businessWindow(date);
   if (!win) return [];
   const slots = [];
-  const breakStart = 13 * 60; // 13:00
-  const breakEnd = 14 * 60; // 14:00 (1 hour break)
   for (let t = win.open; t + duration <= win.close; t += step) {
     const hh = Math.floor(t / 60);
     const mm = t % 60;
-    // Exclude slots overlapping the break window
-    const overlapsBreak = !(t + duration <= breakStart || breakEnd <= t);
-    if (overlapsBreak) continue;
+    // Exclude exactly the 13:00–13:40 slot every day
+    if (t === 13 * 60) continue;
     slots.push({ start: t, label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}` });
   }
   return slots;

@@ -23,7 +23,7 @@ export default function Home() {
   const MAPS_URL =
     "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${LAT},${LNG} (${ADDRESS})`);
   // Public asset hero image (placed in public/)
-  const HERO_URL = "/LemoBarberShop.JPG";
+  const HERO_URL = "/FFF725C7-B78F-4BCC-A8E4-9DAB7FC156C0.JPG";
   return (
     <div className="min-h-screen">
       {intro && <IntroOverlay onDone={() => setIntro(false)} />}
@@ -45,24 +45,23 @@ export default function Home() {
             className="font-display font-black text-center leading-none tracking-tight text-white"
             aria-label="LEMOBARBERSHOP"
           >
-            <span className="block text-[12vw] sm:text-[14vw] md:text-[120px] lg:text-[140px]">
+            <span className="block text-[10vw] sm:text-[12vw] md:text-[100px] lg:text-[120px]">
               {Array.from("LEMOBARBERSHOP").map((ch, i) => {
-                // V-shaped opacity: edges darker (more opaque), center more transparent
                 const steps = [
-                  "text-white/90", // L
-                  "text-white/80", // E
-                  "text-white/70", // M
-                  "text-white/60", // O
-                  "text-white/50", // B
-                  "text-white/40", // A
-                  "text-white/30", // R (first)
-                  "text-white/30", // B (second)
-                  "text-white/40", // E
-                  "text-white/50", // R
-                  "text-white/60", // S
-                  "text-white/70", // H
-                  "text-white/80", // O
-                  "text-white/90", // P
+                  "text-white/90",
+                  "text-white/80",
+                  "text-white/70",
+                  "text-white/60",
+                  "text-white/50",
+                  "text-white/40",
+                  "text-white/30",
+                  "text-white/30",
+                  "text-white/40",
+                  "text-white/50",
+                  "text-white/60",
+                  "text-white/70",
+                  "text-white/80",
+                  "text-white/90",
                 ];
                 return (
                   <span key={i} className={steps[i]}>
@@ -72,9 +71,6 @@ export default function Home() {
               })}
             </span>
           </h1>
-          <p className="text-base sm:text-lg muted max-w-2xl mx-auto">
-            Precision cuts. Clean fades. Since 2022.
-          </p>
           <div className="flex items-center justify-center">
             <button onClick={() => setOpen(true)} className="btn btn-primary">Book Now</button>
           </div>
