@@ -55,7 +55,8 @@ export default function SuccessPage() {
         </button>
         <a
           className="btn btn-outline"
-          href="https://wa.me/" target="_blank" rel="noopener noreferrer"
+          href="https://www.instagram.com/lemobarbershop?igsh=enh6M2J4OHdlaGg3"
+          target="_blank" rel="noopener noreferrer"
         >
           Contact us
         </a>
