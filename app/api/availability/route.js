@@ -1,4 +1,7 @@
-import { BACKEND_BASE_URL } from "../../../lib/config";
+import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
+
+export const runtime = 'edge';
+export const revalidate = 60; // seconds
 
 // Lightweight in-memory cache for per-day availability
 const CACHE = new Map();
@@ -59,27 +62,26 @@ export async function GET(request) {
     dbg.query = { date, barberId, barberRaw, greekLower };
   }
   // const serviceId = searchParams.get("serviceId");
-  const noStoreHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    'Pragma': 'no-cache',
-    'Netlify-CDN-Cache-Control': 'no-store',
+  const cacheHeaders = {
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+    'Netlify-CDN-Cache-Control': 's-maxage=60, stale-while-revalidate=120',
     'Vary': 'barberId, barber, date, serviceId',
   };
-  if (!date) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'no-date' } } : {}) }, { status: 200, headers: noStoreHeaders });
+  if (!date) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'no-date' } } : {}) }, { status: 200, headers: cacheHeaders });
 
-  const base = BACKEND_BASE_URL || "";
+  const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
   const step = 40; // grid step in minutes (appointments every 40')
 
   const day = parseLocalDate(date);
   const win = businessWindow(day);
-  if (!win) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: noStoreHeaders });
+  if (!win) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: cacheHeaders });
 
   // Do not allow booking in the past (e.g., yesterday)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (toYMD(day) < toYMD(today)) {
-    return Response.json({ slots: [] }, { status: 200, headers: noStoreHeaders });
+    return Response.json({ slots: [] }, { status: 200, headers: cacheHeaders });
   }
 
   // Serve from cache when possible
@@ -87,7 +89,7 @@ export async function GET(request) {
   if (debugMode) dbg.cacheKey = cacheKey;
   const hit = CACHE.get(cacheKey);
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json({ slots: hit.slots, ...(debugMode ? { debug: { ...dbg, cache: 'hit' } } : {}) }, { status: 200, headers: noStoreHeaders });
+    return Response.json({ slots: hit.slots, ...(debugMode ? { debug: { ...dbg, cache: 'hit' } } : {}) }, { status: 200, headers: cacheHeaders });
   }
 
   // Fetch existing appointments for just this day (and barber if provided)
@@ -99,7 +101,7 @@ export async function GET(request) {
       if (barberRaw) qs.set("barber", barberRaw);
       const backendURL = `${base}/api/appointments/range?${qs.toString()}`;
       if (debugMode) dbg.backendURL = backendURL;
-      const res = await fetch(backendURL);
+      const res = await fetch(backendURL, { next: { revalidate: 60 } });
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
@@ -107,7 +109,7 @@ export async function GET(request) {
         const hasBreak = list.some((a) => a?.type === 'break' && toYMD(new Date(a.appointmentDateTime || a.start)) === date);
         if (debugMode) dbg.hasBreak = !!hasBreak;
         if (hasBreak) {
-          return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: noStoreHeaders });
+          return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: cacheHeaders });
         }
         existing = list
           .filter((a) => a?.appointmentDateTime || a?.start)
@@ -155,5 +157,5 @@ export async function GET(request) {
   const out = free.map((s) => s.label);
   // Store in cache
   CACHE.set(cacheKey, { ts: Date.now(), slots: out });
-  return Response.json({ slots: out, ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: noStoreHeaders });
+  return Response.json({ slots: out, ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: cacheHeaders });
 }

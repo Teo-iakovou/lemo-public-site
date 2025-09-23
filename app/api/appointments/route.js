@@ -1,4 +1,4 @@
-import { BACKEND_BASE_URL } from "../../../lib/config";
+import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
 
 export async function POST(request) {
   try {
@@ -18,7 +18,7 @@ export async function POST(request) {
     };
     if (email) payload.email = email;
 
-    const base = BACKEND_BASE_URL || "";
+    const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
     if (!base) {
       // No backend configured; return a fake id to complete the flow in dev
       return Response.json({ id: "local-dev-appointment" }, { status: 200 });

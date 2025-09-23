@@ -1,4 +1,7 @@
-import { BACKEND_BASE_URL } from "../../../../lib/config";
+import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
+
+export const runtime = 'edge';
+export const revalidate = 60; // seconds
 
 // Simple in-memory cache with TTL
 const CACHE = new Map();
@@ -61,22 +64,22 @@ export async function GET(request) {
   // IMPORTANT: include a stable barber key even when only Greek 'barber' is provided
   const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
-  const noStoreHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    'Pragma': 'no-cache',
-    'Netlify-CDN-Cache-Control': 'no-store',
+  const cacheHeaders = {
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+    'Netlify-CDN-Cache-Control': 's-maxage=60, stale-while-revalidate=300',
     'Vary': 'barberId, barber, start, days, include',
     'X-Debug-Barber-Key': normalizedKey,
   };
   if (hit && Date.now() - hit.ts < TTL_MS) {
-    return Response.json(hit.data, { status: 200, headers: noStoreHeaders });
+    return Response.json(hit.data, { status: 200, headers: cacheHeaders });
   }
 
   const startDate = parseYMD(start);
   const endDate = new Date(startDate.getTime() + (days - 1) * 86400000);
 
-  // Always proxy to backend month endpoint; backend computes counts/slots
-  if (BACKEND_BASE_URL) {
+  // Always proxy to backend month endpoint; prefer direct backend when configured
+  const BASE = DIRECT_BACKEND_URL || BACKEND_BASE_URL;
+  if (BASE) {
     try {
       const from = toYMD(startDate);
       const to = toYMD(endDate);
@@ -86,12 +89,12 @@ export async function GET(request) {
       else if (greekBarber) qs.set('barber', greekBarber);
       if (include.includes('slots')) qs.set('include', 'slots');
       // Allow backend Cache-Control (s-maxage, stale-while-revalidate) to be honored
-      const res = await fetch(`${BACKEND_BASE_URL}/api/availability/month?${qs.toString()}`);
+      const res = await fetch(`${BASE}/api/availability/month?${qs.toString()}`, { next: { revalidate: 60 } });
       if (res.ok) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
         CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200, headers: noStoreHeaders });
+        return Response.json(payload, { status: 200, headers: cacheHeaders });
       }
     } catch {}
   }
@@ -99,5 +102,5 @@ export async function GET(request) {
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
   CACHE.set(cacheKey, { ts: Date.now(), data: empty });
-  return Response.json(empty, { status: 200, headers: noStoreHeaders });
+  return Response.json(empty, { status: 200, headers: cacheHeaders });
 }
