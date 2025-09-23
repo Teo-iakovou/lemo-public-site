@@ -38,6 +38,8 @@ h1, h2, h3, .font-display {
   @apply border border-white/30 text-white hover:bg-white hover:text-black;
 }
 
+/* (removed btn-logo blurred background) */
+
 .container-xl {
   @apply mx-auto max-w-7xl px-6 sm:px-8;
 }

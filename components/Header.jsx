@@ -11,8 +11,12 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-black/40 bg-black/70 border-b border-white/10">
       <div className="container-xl flex h-16 items-center justify-center sm:justify-between">
-        <Link href="/" className="font-display text-2xl tracking-wide">
-          LEMO
+        <Link href="/" className="font-display font-graffiti text-2xl tracking-wide" aria-label="LEMO">
+          {Array.from("LEMO").map((ch, i) => (
+            <span key={i} className="text-white">
+              {ch}
+            </span>
+          ))}
         </Link>
         <nav className="hidden sm:flex items-center gap-6 text-sm">
           <Link href="#services" className="hover:opacity-80">Services</Link>

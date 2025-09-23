@@ -3,6 +3,7 @@
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import MarqueeBanner from "../components/MarqueeBanner";
+import Reveal from "../components/Reveal";
 import BookingModal from "../components/BookingModal";
 import { useEffect, useState } from "react";
 import IntroOverlay from "../components/IntroOverlay";
@@ -15,6 +16,13 @@ export default function Home() {
     const handler = () => setOpen(true);
     window.addEventListener("open-booking", handler);
     return () => window.removeEventListener("open-booking", handler);
+  }, []);
+  // Always land at the hero on reload/navigation and avoid restoring prior scroll
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try { history.scrollRestoration = 'manual'; } catch {}
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
   }, []);
   const ADDRESS = "Parodos Elia Venezi 25A, 4180 Ypsonas";
   const LAT = 34.6881935;
@@ -40,40 +48,44 @@ export default function Home() {
             backgroundPosition: "center",
           }}
         />
-        <div className="container-xl text-center space-y-6">
-          <h1
-            className="font-display font-black text-center leading-none tracking-tight text-white"
-            aria-label="LEMOBARBERSHOP"
-          >
-            <span className="block text-[10vw] sm:text-[12vw] md:text-[100px] lg:text-[120px]">
-              {Array.from("LEMOBARBERSHOP").map((ch, i) => {
-                const steps = [
-                  "text-white/90",
-                  "text-white/80",
-                  "text-white/70",
-                  "text-white/60",
-                  "text-white/50",
-                  "text-white/40",
-                  "text-white/30",
-                  "text-white/30",
-                  "text-white/40",
-                  "text-white/50",
-                  "text-white/60",
-                  "text-white/70",
-                  "text-white/80",
-                  "text-white/90",
-                ];
-                return (
-                  <span key={i} className={steps[i]}>
-                    {ch}
-                  </span>
-                );
-              })}
-            </span>
-          </h1>
-          <div className="flex items-center justify-center">
-            <button onClick={() => setOpen(true)} className="btn btn-primary">Book Now</button>
-          </div>
+        <div className="container-xl text-center space-y-6 -mt-4 sm:-mt-8">
+          <Reveal>
+            <h1
+              className="font-display font-black text-center leading-none tracking-tight text-white"
+              aria-label="LEMOBARBERSHOP"
+            >
+              <span className="block text-[10vw] sm:text-[12vw] md:text-[100px] lg:text-[120px]">
+                {Array.from("LEMOBARBERSHOP").map((ch, i) => {
+                  const steps = [
+                    "text-white/90",
+                    "text-white/80",
+                    "text-white/70",
+                    "text-white/60",
+                    "text-white/50",
+                    "text-white/40",
+                    "text-white/30",
+                    "text-white/30",
+                    "text-white/40",
+                    "text-white/50",
+                    "text-white/60",
+                    "text-white/70",
+                    "text-white/80",
+                    "text-white/90",
+                  ];
+                  return (
+                    <span key={i} className={steps[i]}>
+                      {ch}
+                    </span>
+                  );
+                })}
+              </span>
+            </h1>
+          </Reveal>
+          <Reveal delay={150}>
+            <div className="flex items-center justify-center">
+              <button onClick={() => setOpen(true)} className="btn btn-primary">Book Now</button>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -81,30 +93,32 @@ export default function Home() {
 
       {/* Services */}
       <section id="services" className="section">
-        <div className="container-xl">
+        <Reveal as="div" className="container-xl">
           <h2 className="font-display text-4xl mb-8">Services & Prices</h2>
           <div className="grid grid-cols-1 gap-6 max-w-md mx-auto">
             {[
               { name: "Haircut", price: "€15" },
             ].map((s) => (
-              <div key={s.name} className="p-6 border border-white/10 rounded-lg bg-white/5">
+              <Reveal key={s.name} delay={100} className="p-6 border border-white/10 rounded-lg bg-white/5">
                 <div className="flex items-end justify-between">
                   <h3 className="text-xl font-display">{s.name}</h3>
                   <span className="text-lg">{s.price}</span>
                 </div>
                 <button onClick={() => setOpen(true)} className="inline-block mt-4 text-sm underline">Book →</button>
-              </div>
+              </Reveal>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* Interactive stripes banner */}
-      <MarqueeBanner />
+      <Reveal as="div">
+        <MarqueeBanner />
+      </Reveal>
 
       {/* Map */}
       <section id="location" className="section pt-0">
-        <div className="container-xl">
+        <Reveal as="div" className="container-xl">
           <h2 className="font-display text-4xl mb-6">Location</h2>
           <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-white/10">
             <iframe
@@ -126,12 +140,12 @@ export default function Home() {
               </a>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* Merged Booking + Hours just before footer */}
       <section id="booking-hours" className="section pt-0">
-        <div className="container-xl grid grid-cols-1 sm:grid-cols-2 gap-10 items-start">
+        <Reveal as="div" className="container-xl grid grid-cols-1 sm:grid-cols-2 gap-10 items-start">
           <div>
             <h2 className="font-display text-4xl mb-3">Book with us</h2>
             <p className="muted mb-4">Walk-ins welcome when available. Booking recommended.</p>
@@ -144,7 +158,7 @@ export default function Home() {
               <li>Sun–Mon: Closed</li>
             </ul>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       <Footer />

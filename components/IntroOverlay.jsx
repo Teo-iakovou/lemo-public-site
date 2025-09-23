@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { prefetchBookingData } from "../lib/prefetch";
 
 export default function IntroOverlay({ onDone }) {
-  const [visible, setVisible] = useState(false);
+  // Start visible on first paint (SSR) to prevent hero flash before hydration
+  const [visible, setVisible] = useState(true);
   const [sinking, setSinking] = useState(false);
 
   useEffect(() => {
