@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import BookingProgress from "../../../components/BookingProgress";
 import PhoneInputIntl from "../../../components/PhoneInputIntl";
+// Phone input uses a simple tel field
 
 function BookDetailsInner() {
   const search = useSearchParams();

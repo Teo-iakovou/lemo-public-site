@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
@@ -128,7 +128,6 @@ export default function BookingModal({ open, onClose }) {
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
-  const monthReqIdRef = useRef(0);
   useEffect(() => {
     let aborted = false;
     async function run() {
@@ -365,32 +364,33 @@ export default function BookingModal({ open, onClose }) {
                   setLoadingMonth(true);
                   setBlockCalendar(true);
                 }
-                {
-                  const reqId = ++monthReqIdRef.current;
-                  // Fetch the visible month and next in parallel and REPLACE state with the combined result
-                  const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
-                  const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
-                  Promise.all([
-                    getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' }),
+                getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
+                  .then((data) => {
+                    const counts = data?.counts || {};
+                    setHighlights((prev) => ({ ...prev, ...counts }));
+                    const map = data?.slots || {};
+                    if (map && Object.keys(map).length) {
+                      setSlotsByDate((prev) => ({ ...prev, ...map }));
+                    }
+                    // Background prefetch one more month ahead
+                    const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
+                    const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
                     getHorizonAvailability({ start: nextStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
-                  ])
-                    .then(([data, nxt]) => {
-                      if (reqId !== monthReqIdRef.current) return; // stale
-                      const counts = data?.counts || {};
-                      const map = data?.slots || {};
-                      const nCounts = nxt?.counts || {};
-                      const nMap = nxt?.slots || {};
-                      setHighlights({ ...(counts || {}), ...(nCounts || {}) });
-                      setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
-                    })
-                    .catch(() => {})
-                    .finally(() => {
-                      if (needSpinner) {
-                        setLoadingMonth(false);
-                        setBlockCalendar(false);
-                      }
-                    });
-                }
+                      .then((nxt) => {
+                        const nCounts = nxt?.counts || {};
+                        const nMap = nxt?.slots || {};
+                        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
+                        if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
+                      })
+                      .catch(() => {});
+                  })
+                  .catch(() => {})
+                  .finally(() => {
+                    if (needSpinner) {
+                      setLoadingMonth(false);
+                      setBlockCalendar(false);
+                    }
+                  });
               }}
               />
             </div>
@@ -520,6 +520,7 @@ export default function BookingModal({ open, onClose }) {
                 </div>
               </label>
               <label className="block">
+                <span className="text-sm">Phone</span>
                 <PhoneInputIntl
                   id="booking-phone"
                   value={phone}
