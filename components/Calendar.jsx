@@ -44,9 +44,15 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
     // Determine the first Monday before/at month start (iso week starting Monday)
     const startDay = (start.getDay() + 6) % 7; // 0 = Monday
     const first = addDays(start, -startDay);
+    // Determine the last Sunday at/after month end
+    const endDay = (end.getDay() + 6) % 7; // 0 = Monday
+    const last = addDays(end, 6 - endDay);
+    const totalDays = Math.round((last - first) / 86400000) + 1;
+    const weeksCount = Math.ceil(totalDays / 7); // usually 5 or 6
+
     const weeks = [];
     let d = new Date(first);
-    for (let w = 0; w < 6; w++) {
+    for (let w = 0; w < weeksCount; w++) {
       const row = [];
       for (let i = 0; i < 7; i++) {
         row.push(new Date(d));
@@ -72,17 +78,31 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
   return (
     <div className="relative border border-white/10 rounded-lg overflow-hidden">
       {/* Subtle logo background */}
+      {/* Mobile photo position (lower in frame) */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none block sm:hidden"
         style={{
           backgroundImage: "url(/459C72EF-CE49-4DCF-A1B3-4B2F2C82FDA5.JPG)",
           backgroundRepeat: "no-repeat",
-          backgroundPosition: "center",
+          backgroundPosition: "center 40%",
           backgroundSize: "cover",
-          opacity: 0.12,
+          opacity: 0.3,
           filter: "none",
         }}
       />
+      {/* Desktop/tablet photo position */}
+      <div
+        className="absolute inset-0 pointer-events-none hidden sm:block"
+        style={{
+          backgroundImage: "url(/459C72EF-CE49-4DCF-A1B3-4B2F2C82FDA5.JPG)",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center 45%",
+          backgroundSize: "cover",
+          opacity: 0.3,
+          filter: "none",
+        }}
+      />
+      <div className="absolute inset-0 pointer-events-none bg-black/25" />
       <div className="relative z-10">
         <div className="flex items-center justify-between px-4 py-3 bg-white/5">
           <button
@@ -116,26 +136,23 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
           </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-px bg-white/10">
+        <div className="grid grid-cols-7 gap-0">
           {WEEKDAYS.map((d) => (
-            <div key={d} className="bg-black/60 text-center py-2 text-xs uppercase tracking-wider">
+            <div key={d} className="bg-transparent text-center py-2 text-xs uppercase tracking-wider text-white/80">
               {d}
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-px bg-white/10">
+        <div className="grid grid-cols-7 gap-0">
           {month.weeks.map((row, r) =>
             row.map((d, i) => {
             const ds = toYMD(d);
             const inMonth = d.getMonth() === cursor.getMonth();
-            // Allow first 4 days of the next month to appear/select in current view
-            const nm = (cursor.getMonth() + 1) % 12;
-            const ny = cursor.getMonth() === 11 ? cursor.getFullYear() + 1 : cursor.getFullYear();
-            const isNextMonthFirst4 = d.getFullYear() === ny && d.getMonth() === nm && d.getDate() <= 4;
-            const inDisplay = inMonth || isNextMonthFirst4;
+            // Only allow days from the current month to be selectable/colored
+            const inDisplay = inMonth;
             const isSel = selected && toYMD(selected) === ds;
-            // Allow selecting days within current month and first 4 days of next month
+            // Allow selecting days within current month only
             const disabled = isDisabled(d) || !inDisplay;
             const count = highlights[ds] ?? null;
             const values = Object.values(highlights).filter((v) => typeof v === "number" && v > 0);
@@ -161,28 +178,52 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
               // Available: turquoise bar
               barCls = "bg-teal-400";
             }
+            // Render empty placeholder cells for days outside the current month
+            if (!inMonth) {
+              return (
+                <div
+                  key={`${r}-${i}`}
+                  className="relative h-12 sm:h-14 md:h-16 bg-transparent"
+                  aria-hidden
+                />
+              );
+            }
             return (
               <button
                 key={`${r}-${i}`}
                 type="button"
                 disabled={disabled}
                 onClick={() => onChange && onChange(ds)}
-                className={`relative h-12 sm:h-14 md:h-16 text-sm flex flex-col items-center justify-center ${
+                className={`group relative h-12 sm:h-14 md:h-16 text-sm flex flex-col items-center justify-center ${
                   inDisplay ? "" : "opacity-40"
                 } ${
                   isSel
-                    ? "bg-transparent text-white font-bold text-base sm:text-lg"
-                    : "bg-black/60 text-white hover:bg-white/10"
-                } disabled:opacity-20`}
+                    ? "bg-transparent text-white"
+                    : "bg-transparent text-white"
+                }`}
               >
-                <span>{d.getDate()}</span>
+                <span className={`${isSel ? 'font-extrabold text-white text-base sm:text-lg tracking-wide' : 'font-semibold text-white/90'}`}>
+                  {d.getDate()}
+                </span>
+                {disabled && (
+                  <span
+                    className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-white"
+                    aria-hidden
+                    title="Unavailable"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" className="h-3.5 w-3.5">
+                      <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                      <line x1="6.2" y1="13.8" x2="13.8" y2="6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                )}
                 {(
                   // Show bars only for today/future and not on closed days, and within displayed range
                   inDisplay && (ds >= toYMD(today)) && !isClosedDay && (count !== null)
                 ) && (
                   <span
-                    className={`absolute bottom-1 left-0 h-1 rounded ${barCls}`}
-                    style={{ width: `${width}%` }}
+                    className={`absolute bottom-1 h-1 rounded ${barCls}`}
+                    style={{ width: `${width}%`, left: '50%', transform: 'translateX(-50%)' }}
                   />
                 )}
               </button>

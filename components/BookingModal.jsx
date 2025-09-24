@@ -32,6 +32,14 @@ export default function BookingModal({ open, onClose }) {
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
 
+  // Dynamic step title shown in the modal header to save vertical space
+  const stepTitle = useMemo(() => {
+    if (!barber) return 'Choose your barber';
+    if (barber && !date) return 'Choose your date';
+    if (barber && date && !time) return 'Choose your time';
+    return 'Your details';
+  }, [barber, date, time]);
+
   const HORIZON_DAYS = 14;
   const today = useMemo(() => {
     const t = new Date();
@@ -278,7 +286,7 @@ export default function BookingModal({ open, onClose }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
-          <div className="font-display text-lg">Book an appointment</div>
+          <div className="font-display text-lg">{stepTitle}</div>
           <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Close</button>
         </div>
 
@@ -287,18 +295,24 @@ export default function BookingModal({ open, onClose }) {
           {/* Step 1: Barber selection */}
           {!barber && (
             <div className="sm:col-span-2">
-              <div className="mb-3 font-display text-lg">Choose your barber</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 place-items-center">
                 {[{ id: "Lemo", name: "Lemo" }, { id: "Forou", name: "Forou" }].map((b) => (
                   <button
                     key={b.id}
                     type="button"
                     onClick={() => setBarberChoice(b.id)}
-                    className={`relative p-4 border rounded-lg text-left hover:bg-white/5 ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
+                    className={`relative p-5 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[360px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
                   >
-                    <div className="h-32 w-full bg-white/10 rounded mb-3" />
-                    <div className="font-semibold">{b.name}</div>
-                    <div className="text-sm text-neutral-300">Tap to select</div>
+                    <div className={"h-44 w-44 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
+                    >
+                      <img
+                        src={b.id === 'Lemo' ? '/DSC_0275.JPG' : '/DSC_0262.JPG'}
+                        alt={b.name}
+                        className={`w-full h-full object-cover object-center ${b.id === 'Forou' ? 'transform scale-110' : ''}`}
+                      />
+                    </div>
+                    <div className="h-px w-11/12 my-3 sm:my-2 bg-white/15" />
+                    <div className="font-extrabold tracking-wide uppercase text-sm sm:text-base">{b.name}</div>
                   </button>
                 ))}
               </div>
@@ -520,7 +534,6 @@ export default function BookingModal({ open, onClose }) {
                 </div>
               </label>
               <label className="block">
-                <span className="text-sm">Phone</span>
                 <PhoneInputIntl
                   id="booking-phone"
                   value={phone}
