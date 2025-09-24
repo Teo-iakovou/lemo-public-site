@@ -75,12 +75,12 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: "url(/LemoLogo.png)",
+          backgroundImage: "url(/459C72EF-CE49-4DCF-A1B3-4B2F2C82FDA5.JPG)",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
-          backgroundSize: "60%",
-          opacity: 0.06,
-          filter: "grayscale(100%)",
+          backgroundSize: "cover",
+          opacity: 0.12,
+          filter: "none",
         }}
       />
       <div className="relative z-10">
@@ -149,8 +149,8 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             } else if (count === null) {
               width = 0; // unknown -> no bar
             } else if (count <= 0) {
-              width = 100; // fully booked -> full red bar
-              barCls = "bg-red-500";
+              width = 100; // fully booked -> full purple bar
+              barCls = "bg-purple-500";
             } else {
               if (max > 0) {
                 width = Math.round((count / max) * 100);
@@ -158,8 +158,8 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
               } else {
                 width = 0;
               }
-              // Single color for availability bars
-              barCls = "bg-purple-500";
+              // Available: turquoise bar
+              barCls = "bg-teal-400";
             }
             return (
               <button
