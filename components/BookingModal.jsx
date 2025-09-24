@@ -195,8 +195,22 @@ export default function BookingModal({ open, onClose }) {
           currSlotsDays: Object.keys(map).length,
           nextSlotsDays: Object.keys(nMap).length,
         });
+        // Merge current + next month counts first
+        const mergedCounts = { ...(counts || {}), ...(nCounts || {}) };
+        // Fill missing remaining days of the current month with 0 to avoid empty cells
+        try {
+          const fillStart = new Date(today.getFullYear(), today.getMonth(), Math.max(1, today.getDate()));
+          const endOfCurr = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          for (let d = new Date(fillStart); d <= endOfCurr; d.setDate(d.getDate() + 1)) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const ds = `${y}-${m}-${dd}`;
+            if (!(ds in mergedCounts)) mergedCounts[ds] = 0;
+          }
+        } catch {}
         // Replace state instead of merging to avoid mixing barbers' data
-        setHighlights({ ...(counts || {}), ...(nCounts || {}) });
+        setHighlights(mergedCounts);
         setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
         // Prefill first available selection and slots when picking a barber
         const first = data?.firstAvailable;
@@ -366,7 +380,21 @@ export default function BookingModal({ open, onClose }) {
                 }
                 getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
                   .then((data) => {
-                    const counts = data?.counts || {};
+                    let counts = data?.counts || {};
+                    // If viewing current month, ensure remaining days have at least 0
+                    try {
+                      const isCurrentMonth = firstOfMonth.getFullYear() === today.getFullYear() && firstOfMonth.getMonth() === today.getMonth();
+                      if (isCurrentMonth) {
+                        const endOfMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0);
+                        for (let d = new Date(today); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
+                          const y = d.getFullYear();
+                          const m = String(d.getMonth() + 1).padStart(2, '0');
+                          const dd = String(d.getDate()).padStart(2, '0');
+                          const ds = `${y}-${m}-${dd}`;
+                          if (!(ds in counts)) counts[ds] = 0;
+                        }
+                      }
+                    } catch {}
                     setHighlights((prev) => ({ ...prev, ...counts }));
                     const map = data?.slots || {};
                     if (map && Object.keys(map).length) {
