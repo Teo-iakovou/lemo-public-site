@@ -176,13 +176,12 @@ export default function BookingModal({ open, onClose }) {
       const currMonthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
       const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       const nextMonthStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
-      const currDaysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-      const nextDaysInMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
+      // Use a stable 35-day window to overlap next month a bit
       try {
         // Fetch current and next month in parallel for snappier load
         const [data, nxt] = await Promise.all([
-          getHorizonAvailability({ start: currMonthStart, days: currDaysInMonth + 6, barberId: toBarberId(barber), include: 'slots' }),
-          getHorizonAvailability({ start: nextMonthStart, days: nextDaysInMonth + 6, barberId: toBarberId(barber), include: 'slots' })
+          getHorizonAvailability({ start: currMonthStart, days: 35, barberId: toBarberId(barber), include: 'slots' }),
+          getHorizonAvailability({ start: nextMonthStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
         ]);
         if (aborted) return;
         const counts = data?.counts || {};
@@ -365,7 +364,7 @@ export default function BookingModal({ open, onClose }) {
                   setLoadingMonth(true);
                   setBlockCalendar(true);
                 }
-                getHorizonAvailability({ start, days: daysInMonth + 6, barberId: toBarberId(barber), include: 'slots' })
+                getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
                   .then((data) => {
                     const counts = data?.counts || {};
                     setHighlights((prev) => ({ ...prev, ...counts }));
@@ -376,8 +375,7 @@ export default function BookingModal({ open, onClose }) {
                     // Background prefetch one more month ahead
                     const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
                     const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
-                    const nextDays = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
-                    getHorizonAvailability({ start: nextStart, days: nextDays + 6, barberId: toBarberId(barber), include: 'slots' })
+                    getHorizonAvailability({ start: nextStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
                       .then((nxt) => {
                         const nCounts = nxt?.counts || {};
                         const nMap = nxt?.slots || {};

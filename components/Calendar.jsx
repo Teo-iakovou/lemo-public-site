@@ -129,13 +129,13 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             row.map((d, i) => {
             const ds = toYMD(d);
             const inMonth = d.getMonth() === cursor.getMonth();
-            // Allow first 5 days of the next month to appear/select in current view
+            // Allow first 4 days of the next month to appear/select in current view
             const nm = (cursor.getMonth() + 1) % 12;
             const ny = cursor.getMonth() === 11 ? cursor.getFullYear() + 1 : cursor.getFullYear();
-            const isNextMonthFirst6 = d.getFullYear() === ny && d.getMonth() === nm && d.getDate() <= 5;
-            const inDisplay = inMonth || isNextMonthFirst6;
+            const isNextMonthFirst4 = d.getFullYear() === ny && d.getMonth() === nm && d.getDate() <= 4;
+            const inDisplay = inMonth || isNextMonthFirst4;
             const isSel = selected && toYMD(selected) === ds;
-            // Allow selecting days within current month and first 6 days of next month
+            // Allow selecting days within current month and first 4 days of next month
             const disabled = isDisabled(d) || !inDisplay;
             const count = highlights[ds] ?? null;
             const values = Object.values(highlights).filter((v) => typeof v === "number" && v > 0);
