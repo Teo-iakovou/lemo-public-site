@@ -253,7 +253,7 @@ export default function BookingModal({ open, onClose }) {
       const id = result?.id || result?._id || "";
       const p = new URLSearchParams();
       if (id) p.set("id", id);
-      onClose?.();
+      // Navigate first; do not close the modal before routing to avoid a brief flash of the home page
       router.push(`/success?${p.toString()}`);
     } catch (e) {
       setError(e.message || "Failed to create appointment");
