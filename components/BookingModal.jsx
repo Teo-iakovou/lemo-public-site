@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
@@ -128,6 +128,7 @@ export default function BookingModal({ open, onClose }) {
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
+  const monthReqIdRef = useRef(0);
   useEffect(() => {
     let aborted = false;
     async function run() {
@@ -195,22 +196,8 @@ export default function BookingModal({ open, onClose }) {
           currSlotsDays: Object.keys(map).length,
           nextSlotsDays: Object.keys(nMap).length,
         });
-        // Merge current + next month counts first
-        const mergedCounts = { ...(counts || {}), ...(nCounts || {}) };
-        // Fill missing remaining days of the current month with 0 to avoid empty cells
-        try {
-          const fillStart = new Date(today.getFullYear(), today.getMonth(), Math.max(1, today.getDate()));
-          const endOfCurr = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          for (let d = new Date(fillStart); d <= endOfCurr; d.setDate(d.getDate() + 1)) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const ds = `${y}-${m}-${dd}`;
-            if (!(ds in mergedCounts)) mergedCounts[ds] = 0;
-          }
-        } catch {}
         // Replace state instead of merging to avoid mixing barbers' data
-        setHighlights(mergedCounts);
+        setHighlights({ ...(counts || {}), ...(nCounts || {}) });
         setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
         // Prefill first available selection and slots when picking a barber
         const first = data?.firstAvailable;
@@ -378,47 +365,32 @@ export default function BookingModal({ open, onClose }) {
                   setLoadingMonth(true);
                   setBlockCalendar(true);
                 }
-                getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
-                  .then((data) => {
-                    let counts = data?.counts || {};
-                    // If viewing current month, ensure remaining days have at least 0
-                    try {
-                      const isCurrentMonth = firstOfMonth.getFullYear() === today.getFullYear() && firstOfMonth.getMonth() === today.getMonth();
-                      if (isCurrentMonth) {
-                        const endOfMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0);
-                        for (let d = new Date(today); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-                          const y = d.getFullYear();
-                          const m = String(d.getMonth() + 1).padStart(2, '0');
-                          const dd = String(d.getDate()).padStart(2, '0');
-                          const ds = `${y}-${m}-${dd}`;
-                          if (!(ds in counts)) counts[ds] = 0;
-                        }
-                      }
-                    } catch {}
-                    setHighlights((prev) => ({ ...prev, ...counts }));
-                    const map = data?.slots || {};
-                    if (map && Object.keys(map).length) {
-                      setSlotsByDate((prev) => ({ ...prev, ...map }));
-                    }
-                    // Background prefetch one more month ahead
-                    const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
-                    const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+                {
+                  const reqId = ++monthReqIdRef.current;
+                  // Fetch the visible month and next in parallel and REPLACE state with the combined result
+                  const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
+                  const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+                  Promise.all([
+                    getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' }),
                     getHorizonAvailability({ start: nextStart, days: 35, barberId: toBarberId(barber), include: 'slots' })
-                      .then((nxt) => {
-                        const nCounts = nxt?.counts || {};
-                        const nMap = nxt?.slots || {};
-                        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
-                        if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
-                      })
-                      .catch(() => {});
-                  })
-                  .catch(() => {})
-                  .finally(() => {
-                    if (needSpinner) {
-                      setLoadingMonth(false);
-                      setBlockCalendar(false);
-                    }
-                  });
+                  ])
+                    .then(([data, nxt]) => {
+                      if (reqId !== monthReqIdRef.current) return; // stale
+                      const counts = data?.counts || {};
+                      const map = data?.slots || {};
+                      const nCounts = nxt?.counts || {};
+                      const nMap = nxt?.slots || {};
+                      setHighlights({ ...(counts || {}), ...(nCounts || {}) });
+                      setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                      if (needSpinner) {
+                        setLoadingMonth(false);
+                        setBlockCalendar(false);
+                      }
+                    });
+                }
               }}
               />
             </div>
