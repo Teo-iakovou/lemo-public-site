@@ -91,10 +91,10 @@ h1, h2, h3, .font-display {
   gap: 0;
   will-change: transform;
   animation-name: marquee-left;
-  animation-duration: 24s;
+  animation-duration: 40s;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-  animation-play-state: paused; /* move only on hover */
+  animation-play-state: running; /* default: always scroll */
 }
 .marquee__content {
   display: inline-flex;
@@ -104,18 +104,18 @@ h1, h2, h3, .font-display {
   padding-right: 2rem;
 }
 
-/* Play on hover only */
-.marquee:hover .marquee__inner { animation-play-state: running; }
+/* Pause on hover */
+.marquee:hover .marquee__inner { animation-play-state: paused; }
 
 /* Opposite direction helper */
 .marquee--reverse .marquee__inner { animation-direction: reverse; }
 
 /* Larger screens scroll a bit slower for presence */
 @media (min-width: 640px) {
-  .marquee__inner { animation-duration: 30s; }
+  .marquee__inner { animation-duration: 55s; }
 }
 @media (min-width: 1024px) {
-  .marquee__inner { animation-duration: 36s; }
+  .marquee__inner { animation-duration: 70s; }
 }
 
 @keyframes marquee-left {

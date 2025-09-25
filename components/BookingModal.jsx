@@ -32,6 +32,26 @@ export default function BookingModal({ open, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
+  const [animateForm, setAnimateForm] = useState(false);
+
+  function resetModalState() {
+    setBarber("");
+    setBarberChoice("");
+    setDate("");
+    setTime("");
+    setLastTime("");
+    setSlots([]);
+    setSlotsByDate({});
+    setHighlights({});
+    setLoadingHints(false);
+    setLoadingSlots(false);
+    setBlockCalendar(false);
+    setError("");
+    setSubmitting(false);
+    setName("");
+    setPhone("");
+    setEmail("");
+  }
 
   // Dynamic step title shown in the modal header to save vertical space
   const stepTitle = useMemo(() => {
@@ -94,17 +114,44 @@ export default function BookingModal({ open, onClose }) {
     });
   }, [open]);
 
-  // Smooth pop-in animation on open
+  // Ensure we always start from the barber selection when opening
+  useEffect(() => {
+    if (open) {
+      resetModalState();
+    }
+  }, [open]);
+
+  // Fade-in animation for the details form when entering the final step
+  useEffect(() => {
+    if (time) {
+      setAnimateForm(false);
+      const id = requestAnimationFrame(() => setAnimateForm(true));
+      return () => cancelAnimationFrame(id);
+    } else {
+      setAnimateForm(false);
+    }
+  }, [time]);
+
+  // Smooth pop-in animation on open (double rAF to ensure first paint applies)
   useEffect(() => {
     if (open) {
       setRender(true);
       setAnimateIn(false);
-      const id = requestAnimationFrame(() => setAnimateIn(true));
-      return () => cancelAnimationFrame(id);
+      let id1, id2;
+      id1 = requestAnimationFrame(() => {
+        id2 = requestAnimationFrame(() => setAnimateIn(true));
+      });
+      return () => {
+        if (id1) cancelAnimationFrame(id1);
+        if (id2) cancelAnimationFrame(id2);
+      };
     } else {
       // Animate out, then unmount after transition
       setAnimateIn(false);
-      const timeout = setTimeout(() => setRender(false), 300);
+      const timeout = setTimeout(() => {
+        setRender(false);
+        resetModalState();
+      }, 500);
       return () => clearTimeout(timeout);
     }
   }, [open]);
@@ -240,27 +287,7 @@ export default function BookingModal({ open, onClose }) {
     return () => { aborted = true; };
   }, [open, serviceId, barber, today, HORIZON_DAYS]);
 
-  // When the modal closes, reset barber and selection so user must choose again
-  useEffect(() => {
-    if (!open) {
-      setBarber("");
-      setBarberChoice("");
-      setDate("");
-      setTime("");
-      setLastTime("");
-      setSlots([]);
-      setSlotsByDate({});
-      setHighlights({});
-      setLoadingHints(false);
-      setLoadingSlots(false);
-      setBlockCalendar(false);
-      setError("");
-      setSubmitting(false);
-      setName("");
-      setPhone("");
-      setEmail("");
-    }
-  }, [open]);
+  // Delay resetting state until after close animation (handled in open-effect)
 
   async function onConfirm() {
     if (!serviceId || !date || !time || !name || !phone) return;
@@ -289,13 +316,13 @@ export default function BookingModal({ open, onClose }) {
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-500 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
 
-      {/* Panel: full screen on mobile, centered card on larger screens */}
+      {/* Panel: full screen on mobile, centered card on larger screens (zoom + fade-in) */}
       <div
-        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden transform transition-transform transition-opacity duration-300 ease-out ${animateIn ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}
+        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden transform-gpu will-change-transform transition-all duration-500 ease-out ${animateIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
@@ -519,7 +546,7 @@ export default function BookingModal({ open, onClose }) {
             )}
 
             {time && (
-            <form className="grid gap-3 mt-4" onSubmit={(e) => e.preventDefault()}>
+            <form className={`grid gap-3 mt-4 transition-opacity duration-500 ease-out ${animateForm ? 'opacity-100' : 'opacity-0'}`} onSubmit={(e) => e.preventDefault()}>
               {/* Selection summary */}
               <div className="p-3 border border-white/10 rounded-md bg-white/5 text-sm flex flex-wrap gap-x-4 gap-y-1">
                 <div>
