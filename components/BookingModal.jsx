@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
@@ -79,6 +80,18 @@ export default function BookingModal({ open, onClose }) {
     return () => {
       mounted = false;
     };
+  }, [open]);
+
+  // Preload barber images as soon as modal opens for instant paint
+  useEffect(() => {
+    if (!open) return;
+    ["/DSC_0275.JPG", "/DSC_0262.JPG"].forEach((src) => {
+      try {
+        const img = new Image();
+        img.decoding = "async";
+        img.src = src;
+      } catch {}
+    });
   }, [open]);
 
   // Smooth pop-in animation on open
@@ -303,12 +316,16 @@ export default function BookingModal({ open, onClose }) {
                     onClick={() => setBarberChoice(b.id)}
                     className={`relative p-5 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[360px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
                   >
-                    <div className={"h-44 w-44 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
+                    <div className={"relative h-44 w-44 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
                     >
-                      <img
+                      <Image
                         src={b.id === 'Lemo' ? '/DSC_0275.JPG' : '/DSC_0262.JPG'}
                         alt={b.name}
-                        className={`w-full h-full object-cover object-center ${b.id === 'Forou' ? 'transform scale-110' : ''}`}
+                        fill
+                        priority
+                        fetchPriority="high"
+                        sizes="(max-width: 640px) 176px, 192px"
+                        className={`object-cover object-center ${b.id === 'Forou' ? 'transform scale-110' : ''}`}
                       />
                     </div>
                     <div className="h-px w-11/12 my-3 sm:my-2 bg-white/15" />
