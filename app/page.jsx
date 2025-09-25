@@ -97,7 +97,7 @@ export default function Home() {
           <h2 className="font-display text-4xl mb-8">Services & Prices</h2>
           <div className="grid grid-cols-1 gap-6 max-w-md mx-auto">
             {[
-              { name: "Haircut", price: "€15" },
+              { name: "Haircut", price: "€10–€15" },
             ].map((s) => (
               <Reveal key={s.name} delay={100} className="p-6 border border-white/10 rounded-lg bg-white/5">
                 <div className="flex items-end justify-between">

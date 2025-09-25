@@ -34,6 +34,16 @@ export default function BookingModal({ open, onClose }) {
   const [render, setRender] = useState(false);
   const [animateForm, setAnimateForm] = useState(false);
 
+  // UI-only per-barber prices (EUR)
+  const PRICES = { lemo: 15, forou: 10 };
+  function formatEuro(v) {
+    try {
+      return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+    } catch {
+      return `€${v}`;
+    }
+  }
+
   function resetModalState() {
     setBarber("");
     setBarberChoice("");
@@ -55,10 +65,16 @@ export default function BookingModal({ open, onClose }) {
 
   // Dynamic step title shown in the modal header to save vertical space
   const stepTitle = useMemo(() => {
-    if (!barber) return 'Choose your barber';
-    if (barber && !date) return 'Choose your date';
-    if (barber && date && !time) return 'Choose your time';
-    return 'Your details';
+    const base = (!barber)
+      ? 'Choose your barber'
+      : (!date)
+        ? 'Choose your date'
+        : (!time)
+          ? 'Choose your time'
+          : 'Your details';
+    if (!barber) return base;
+    const price = PRICES[toBarberId(barber)];
+    return price ? `${base} — ${formatEuro(price)}` : base;
   }, [barber, date, time]);
 
   const HORIZON_DAYS = 14;
@@ -357,6 +373,9 @@ export default function BookingModal({ open, onClose }) {
                     </div>
                     <div className="h-px w-11/12 my-3 sm:my-2 bg-white/15" />
                     <div className="font-extrabold tracking-wide uppercase text-sm sm:text-base">{b.name}</div>
+                    <div className="text-xs sm:text-sm text-white/80 mt-1">
+                      {formatEuro(PRICES[toBarberId(b.id)])}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -560,6 +579,9 @@ export default function BookingModal({ open, onClose }) {
                 </div>
                 <div>
                   <span className="text-neutral-400">Service:</span> {services[0]?.name || 'Haircut'}
+                  {barber && (
+                    <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
+                  )}
                 </div>
               </div>
               <label className="block">
