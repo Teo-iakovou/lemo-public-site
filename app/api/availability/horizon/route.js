@@ -1,11 +1,12 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
 
 export const runtime = 'edge';
-export const revalidate = 60; // seconds
+// Always compute fresh; disable framework-level caching for this route
+export const dynamic = 'force-dynamic';
 
-// Simple in-memory cache with TTL
+// Simple in-memory cache with TTL (disabled)
 const CACHE = new Map();
-const TTL_MS = 180 * 1000; // 3 minutes
+const TTL_MS = 0; // disable to reflect latest backend state immediately
 
 function toYMD(d) {
   // Local YYYY-MM-DD to avoid UTC day drift
@@ -65,12 +66,12 @@ export async function GET(request) {
   const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
   const hit = CACHE.get(cacheKey);
   const cacheHeaders = {
-    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-    'Netlify-CDN-Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
     'Vary': 'barberId, barber, start, days, include',
     'X-Debug-Barber-Key': normalizedKey,
   };
-  if (hit && Date.now() - hit.ts < TTL_MS) {
+  if (TTL_MS > 0 && hit && Date.now() - hit.ts < TTL_MS) {
     return Response.json(hit.data, { status: 200, headers: cacheHeaders });
   }
 
@@ -88,12 +89,12 @@ export async function GET(request) {
       if (barberId && greekBarber) qs.set('barber', greekBarber);
       else if (greekBarber) qs.set('barber', greekBarber);
       if (include.includes('slots')) qs.set('include', 'slots');
-      // Allow backend Cache-Control (s-maxage, stale-while-revalidate) to be honored
-      const res = await fetch(`${BASE}/api/availability/month?${qs.toString()}`, { next: { revalidate: 60 } });
+      // Always bypass caches for freshness
+      const res = await fetch(`${BASE}/api/availability/month?${qs.toString()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
-        CACHE.set(cacheKey, { ts: Date.now(), data: payload });
+        if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: payload });
         return Response.json(payload, { status: 200, headers: cacheHeaders });
       }
     } catch {}
@@ -101,6 +102,6 @@ export async function GET(request) {
 
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
-  CACHE.set(cacheKey, { ts: Date.now(), data: empty });
+  if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: empty });
   return Response.json(empty, { status: 200, headers: cacheHeaders });
 }

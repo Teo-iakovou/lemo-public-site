@@ -38,6 +38,20 @@ h1, h2, h3, .font-display {
   @apply border border-white/30 text-white hover:bg-white hover:text-black;
 }
 
+/* Size variants for buttons */
+.btn-sm {
+  /* Higher specificity with .btn.btn-sm in markup will override base padding/size/weight */
+  @apply px-3 py-2 text-xs font-bold;
+}
+
+/* Gang Barbers style button (responsive)
+   - Mobile: smaller for fit
+   - >= sm: 15px font, 16px/32px padding, white bg */
+.btn-gang {
+  @apply font-bold uppercase bg-white text-black hover:bg-neutral-200 tracking-wide;
+  @apply px-4 py-2 text-xs sm:px-8 sm:py-4 sm:text-[15px] lg:px-6 lg:py-3;
+}
+
 /* (removed btn-logo blurred background) */
 
 .container-xl {

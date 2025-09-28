@@ -19,13 +19,13 @@ export default function Header() {
           ))}
         </Link>
         <nav className="hidden sm:flex items-center gap-6 text-sm">
-          <Link href="#services" className="hover:opacity-80">Services</Link>
-          <Link href="#booking-hours" className="hover:opacity-80">Hours</Link>
-          <Link href="#location" className="hover:opacity-80">Location</Link>
-          <Link href="#footer" className="hover:opacity-80">Contact</Link>
+          <Link href="#services" className="hover:opacity-80">Υπηρεσίες</Link>
+          <Link href="#booking-hours" className="hover:opacity-80">Ώρες</Link>
+          <Link href="#location" className="hover:opacity-80">Τοποθεσία</Link>
+          <Link href="#footer" className="hover:opacity-80">Επικοινωνία</Link>
         </nav>
         <div className="hidden sm:flex items-center gap-3">
-          <button onClick={onBookNow} className="btn btn-primary">Book Now</button>
+          <button onClick={onBookNow} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
         </div>
       </div>
     </header>

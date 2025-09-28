@@ -24,7 +24,8 @@ function endOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Greek weekday abbreviations, Monday-first: Δευ, Τρι, Τετ, Πεμ, Παρ, Σαβ, Κυρ
+const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
 export default function Calendar({ value, onChange, minDate, maxDate, closedWeekdays = [], highlights = {}, onMonthChange }) {
   const today = useMemo(() => {
@@ -116,10 +117,10 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             disabled={!canPrev}
             className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
           >
-            Prev
+            Προηγούμενος
           </button>
           <div className="font-display text-lg">
-            {cursor.toLocaleString(undefined, { month: "long", year: "numeric" })}
+            {cursor.toLocaleString('el-GR', { month: "long", year: "numeric" })}
           </div>
           <button
             type="button"
@@ -132,7 +133,7 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             disabled={!canNext}
             className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
           >
-            Next
+            Επόμενος
           </button>
         </div>
 
@@ -209,7 +210,7 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
                   <span
                     className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-white"
                     aria-hidden
-                    title="Unavailable"
+                    title="Μη διαθέσιμο"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" className="h-3.5 w-3.5">
                       <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" fill="none" />

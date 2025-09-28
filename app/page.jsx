@@ -83,7 +83,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={150}>
             <div className="flex items-center justify-center">
-              <button onClick={() => setOpen(true)} className="btn btn-primary">Book Now</button>
+              <button onClick={() => setOpen(true)} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
             </div>
           </Reveal>
         </div>
@@ -94,17 +94,17 @@ export default function Home() {
       {/* Services */}
       <section id="services" className="section">
         <Reveal as="div" className="container-xl">
-          <h2 className="font-display text-4xl mb-8">Services & Prices</h2>
+          <h2 className="font-display text-4xl mb-8">Υπηρεσίες & Τιμές</h2>
           <div className="grid grid-cols-1 gap-6 max-w-md mx-auto">
             {[
-              { name: "Haircut", price: "€10–€15" },
+              { name: "Κούρεμα", price: "€10–€15" },
             ].map((s) => (
               <Reveal key={s.name} delay={100} className="p-6 border border-white/10 rounded-lg bg-white/5">
                 <div className="flex items-end justify-between">
                   <h3 className="text-xl font-display">{s.name}</h3>
                   <span className="text-lg">{s.price}</span>
                 </div>
-                <button onClick={() => setOpen(true)} className="inline-block mt-4 text-sm underline">Book →</button>
+                <button onClick={() => setOpen(true)} className="inline-block mt-4 text-sm underline">Κράτηση →</button>
               </Reveal>
             ))}
           </div>
@@ -119,10 +119,10 @@ export default function Home() {
       {/* Map */}
       <section id="location" className="section pt-0">
         <Reveal as="div" className="container-xl">
-          <h2 className="font-display text-4xl mb-6">Location</h2>
+          <h2 className="font-display text-4xl mb-6">Τοποθεσία</h2>
           <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-white/10">
             <iframe
-              title="Map"
+              title="Χάρτης"
               className="w-full h-full"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
@@ -136,7 +136,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="btn btn-outline px-3 py-1 text-sm"
               >
-                Open in Google Maps
+                Άνοιγμα στο Google Maps
               </a>
             </div>
           </div>
@@ -147,16 +147,16 @@ export default function Home() {
       <section id="booking-hours" className="section pt-0">
         <Reveal as="div" className="container-xl grid grid-cols-1 sm:grid-cols-2 gap-10 items-start">
           <div>
-            <h2 className="font-display text-4xl mb-3">Book with us</h2>
-            <p className="muted mb-4">Walk-ins welcome when available. Booking recommended.</p>
+            <h2 className="font-display text-4xl mb-3">Κλείστε ραντεβού</h2>
+            <p className="muted mb-4">Δεχόμαστε χωρίς ραντεβού όταν υπάρχει διαθεσιμότητα. Συνιστάται η κράτηση.</p>
 
           </div>
           <div>
-            <h2 className="font-display text-2xl mb-2">Opening Hours</h2>
+            <h2 className="font-display text-2xl mb-2">Ώρες Λειτουργίας</h2>
             <ul className="muted leading-7">
-              <li>Tue–Fri: 09:00–19:00</li>
-              <li>Sat: 09:00–17:40</li>
-              <li>Sun–Mon: Closed</li>
+              <li>Τρ–Παρ: 09:00–19:00</li>
+              <li>Σαβ: 09:00–17:40</li>
+              <li>Κυρ–Δευ: Κλειστά</li>
             </ul>
           </div>
         </Reveal>

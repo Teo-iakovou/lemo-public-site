@@ -1,11 +1,12 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
 
 export const runtime = 'edge';
-export const revalidate = 60; // seconds
+// Always compute fresh; disable framework-level caching for this route
+export const dynamic = 'force-dynamic';
 
 // Lightweight in-memory cache for per-day availability
 const CACHE = new Map();
-const TTL_MS = 60 * 1000; // 60 seconds
+const TTL_MS = 5000; // 5s tiny TTL for snappier UX while keeping freshness
 
 function toYMD(d) {
   const y = d.getFullYear();
@@ -36,8 +37,7 @@ function slotify({ date, duration = 40, step = 40 }) {
   for (let t = win.open; t + duration <= win.close; t += step) {
     const hh = Math.floor(t / 60);
     const mm = t % 60;
-    // Exclude exactly the 13:00–13:40 slot every day
-    if (t === 13 * 60) continue;
+    // Allow all business-window slots; do not exclude lunch by default
     slots.push({ start: t, label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}` });
   }
   return slots;
@@ -60,12 +60,14 @@ export async function GET(request) {
   const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
   if (debugMode) {
     dbg.query = { date, barberId, barberRaw, greekLower };
+    dbg.version = 'per-day-v3';
   }
   // const serviceId = searchParams.get("serviceId");
   const cacheHeaders = {
-    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-    'Netlify-CDN-Cache-Control': 's-maxage=60, stale-while-revalidate=120',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
     'Vary': 'barberId, barber, date, serviceId',
+    'X-Route-Version': 'per-day-v3',
   };
   if (!date) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'no-date' } } : {}) }, { status: 200, headers: cacheHeaders });
 
@@ -88,7 +90,7 @@ export async function GET(request) {
   const cacheKey = `${date}|${barberId || barberRaw}`;
   if (debugMode) dbg.cacheKey = cacheKey;
   const hit = CACHE.get(cacheKey);
-  if (hit && Date.now() - hit.ts < TTL_MS) {
+  if (TTL_MS > 0 && hit && Date.now() - hit.ts < TTL_MS) {
     return Response.json({ slots: hit.slots, ...(debugMode ? { debug: { ...dbg, cache: 'hit' } } : {}) }, { status: 200, headers: cacheHeaders });
   }
 
@@ -101,30 +103,48 @@ export async function GET(request) {
       if (barberRaw) qs.set("barber", barberRaw);
       const backendURL = `${base}/api/appointments/range?${qs.toString()}`;
       if (debugMode) dbg.backendURL = backendURL;
-      const res = await fetch(backendURL, { next: { revalidate: 60 } });
+      const res = await fetch(backendURL, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.appointments || [];
-        // If backend returns any break for this date, treat the day as fully blocked
+        // Breaks are treated as blocking intervals (not whole-day blockers)
         const hasBreak = list.some((a) => a?.type === 'break' && toYMD(new Date(a.appointmentDateTime || a.start)) === date);
         if (debugMode) dbg.hasBreak = !!hasBreak;
-        if (hasBreak) {
-          return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: cacheHeaders });
-        }
         existing = list
           .filter((a) => a?.appointmentDateTime || a?.start)
           // Treat both real appointments and breaks as blocking
           .filter((a) => (a?.appointmentStatus ? a.appointmentStatus === "confirmed" : true))
-          .map((a) => ({
-            start: new Date(a.appointmentDateTime || a.start),
-            // Enforce 40-minute appointments for overlap logic
-            duration: 40,
-            barber: (a.barber || "").toLowerCase(),
-          }))
+          .map((a) => {
+            const start = new Date(a.appointmentDateTime || a.start);
+            let duration = 40;
+            if (typeof a.duration === 'number' && isFinite(a.duration) && a.duration > 0) {
+              duration = a.duration;
+            } else if (a.endTime) {
+              const end = new Date(a.endTime);
+              const diffMin = Math.max(1, Math.round((end - start) / 60000));
+              duration = diffMin;
+            }
+            // Guard against extreme values (cap to 12 hours)
+            duration = Math.min(duration, 12 * 60);
+            return {
+              start,
+              duration,
+              barber: (a.barber || "").toLowerCase(),
+              type: a.type || 'appointment',
+            };
+          })
           .filter((a) => toYMD(a.start) === date)
           // Compare using Greek lowercase id (backend data is Greek)
           .filter((a) => !greekLower || !a.barber || a.barber === greekLower);
-        if (debugMode) dbg.existingCount = existing.length;
+        if (debugMode) {
+          dbg.existingCount = existing.length;
+          dbg.blocks = existing.map((b) => {
+            const startMin = b.start.getHours() * 60 + b.start.getMinutes();
+            const endMin = startMin + b.duration;
+            const fmt = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+            return { type: b.type || 'appointment', startMin, endMin, start: fmt(startMin), end: fmt(endMin) };
+          });
+        }
       }
     }
   } catch {
@@ -133,29 +153,54 @@ export async function GET(request) {
 
   // Generate candidate slots and remove overlaps
   const candidates = slotify({ date: day, duration, step });
-  const free = candidates.filter((c) => {
-    // Convert minutes-from-midnight to minutes in the day and compare
+  let removedByOverlap = [];
+  let free = [];
+  for (const c of candidates) {
     const startMinutes = c.start;
-    return !existing.some((b) => {
+    const overlappers = existing.filter((b) => {
       const bStartMinutes = b.start.getHours() * 60 + b.start.getMinutes();
       return overlaps(startMinutes, duration, bStartMinutes, b.duration);
     });
-  });
-  if (debugMode) dbg.candidates = candidates.length, dbg.free = free.length;
+    if (overlappers.length) {
+      removedByOverlap.push({
+        slot: c.label,
+        overlaps: overlappers.map((b) => {
+          const bs = b.start.getHours() * 60 + b.start.getMinutes();
+          const be = bs + b.duration;
+          const fmt = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+          return { type: b.type || 'appointment', start: fmt(bs), end: fmt(be) };
+        })
+      });
+    } else {
+      free.push(c);
+    }
+  }
+  if (debugMode) {
+    dbg.window = businessWindow(day);
+    dbg.candidates = candidates.map((c) => c.label);
+    dbg.removedByOverlap = removedByOverlap;
+    dbg.freeInitial = free.map((c) => c.label);
+  }
 
   // Apply cutoff if date is today (no booking inside next 60')
   const now = new Date();
   if (toYMD(now) === date) {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const cutoff = currentMinutes + 60;
+    const before = free.map((c) => c.label);
+    const removed = [];
     for (let i = free.length - 1; i >= 0; i--) {
-      if (free[i].start < cutoff) free.splice(i, 1);
+      if (free[i].start < cutoff) removed.push(free[i].label), free.splice(i, 1);
     }
-    if (debugMode) dbg.freeAfterCutoff = free.length;
+    if (debugMode) {
+      dbg.cutoff = cutoff;
+      dbg.removedByCutoff = removed;
+      dbg.freeAfterCutoff = free.map((c) => c.label);
+    }
   }
 
   const out = free.map((s) => s.label);
-  // Store in cache
-  CACHE.set(cacheKey, { ts: Date.now(), slots: out });
+  // Store in cache (guarded by TTL)
+  if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), slots: out });
   return Response.json({ slots: out, ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: cacheHeaders });
 }

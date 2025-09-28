@@ -50,7 +50,7 @@ export default function IntroOverlay({ onDone }) {
         onClick={() => { setVisible(false); onDone?.(); }}
         className="absolute top-3 right-3 text-xs px-2 py-1 rounded border border-white/20 bg-white/5 hover:bg-white/10"
       >
-        Skip
+        Παράλειψη
       </button>
 
       <div className={`text-center select-none ${sinking ? "intro-sinking" : ""}`}>

@@ -66,12 +66,12 @@ export default function BookingModal({ open, onClose }) {
   // Dynamic step title shown in the modal header to save vertical space
   const stepTitle = useMemo(() => {
     const base = (!barber)
-      ? 'Choose your barber'
+      ? 'Επιλέξτε κουρέα'
       : (!date)
-        ? 'Choose your date'
+        ? 'Επιλέξτε ημερομηνία'
         : (!time)
-          ? 'Choose your time'
-          : 'Your details';
+          ? 'Επιλέξτε ώρα'
+          : 'Τα στοιχεία σας';
     if (!barber) return base;
     const price = PRICES[toBarberId(barber)];
     return price ? `${base} — ${formatEuro(price)}` : base;
@@ -100,6 +100,14 @@ export default function BookingModal({ open, onClose }) {
     if (id === "Lemo") return "lemo";
     if (id === "Forou") return "forou";
     return String(id).toLowerCase();
+  }
+
+  // UI display names in Greek (title case), keep payload mapping separate
+  function toGreekBarberUI(name) {
+    if (!name) return "";
+    if (name === "Lemo") return "Λεμο";
+    if (name === "Forou") return "Φορου";
+    return name;
   }
 
   // Prefetch services when the modal opens
@@ -179,24 +187,23 @@ export default function BookingModal({ open, onClose }) {
       if (!serviceId || !date) return;
       const hasPre = Object.prototype.hasOwnProperty.call(slotsByDate, date);
       if (debugEnabled) console.debug('[Booking] date-change', { barberId: toBarberId(barber), date, hasPre, preCount: hasPre ? (slotsByDate[date]?.length ?? 0) : undefined });
-      if (hasPre) {
-        if (mounted) {
-          setSlots(slotsByDate[date]);
-          setLoadingSlots(false);
-        }
-        return;
+      // Show any preloaded slots immediately for snappy UI, but still refresh from per-day endpoint
+      if (hasPre && mounted) {
+        setSlots(slotsByDate[date]);
       }
       setLoadingSlots(true);
       try {
-        if (debugEnabled) console.debug('[Booking] fetch per-day', { date, barberId: toBarberId(barber) });
+        if (debugEnabled) console.debug('[Booking] fetch per-day (fresh)', { date, barberId: toBarberId(barber) });
         const res = await getAvailability({ serviceId, date, barberId: toBarberId(barber) });
         const arr = Array.isArray(res) ? res : res?.slots || [];
         if (mounted) {
           setSlots(arr);
           setSlotsByDate((m) => ({ ...m, [date]: arr }));
+          // Reflect fresh availability in the calendar bar for the selected day
+          setHighlights((m) => ({ ...m, [date]: arr.length }));
         }
       } catch (e) {
-        if (mounted) setSlots([]);
+        if (mounted && !hasPre) setSlots([]);
       } finally {
         if (mounted) setLoadingSlots(false);
       }
@@ -205,7 +212,7 @@ export default function BookingModal({ open, onClose }) {
     return () => {
       mounted = false;
     };
-  }, [serviceId, date, barber, slotsByDate]);
+  }, [serviceId, date, barber]);
 
   // Prefetch availability counts and per-day slots via horizon; prefill first available
   const [highlights, setHighlights] = useState({});
@@ -343,7 +350,7 @@ export default function BookingModal({ open, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
           <div className="font-display text-lg">{stepTitle}</div>
-          <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Close</button>
+          <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Κλείσιμο</button>
         </div>
 
         {/* Body */}
@@ -474,7 +481,7 @@ export default function BookingModal({ open, onClose }) {
             {(blockCalendar && (loadingMonth || loadingHints)) && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity duration-200 ease-out opacity-100">
                 <div
-                  aria-label="Loading availability"
+                  aria-label="Φόρτωση διαθεσιμότητας"
                   className="h-6 w-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"
                 />
               </div>
@@ -488,10 +495,10 @@ export default function BookingModal({ open, onClose }) {
             {!time && barber && date && (
               <div>
                 <div className="text-sm mb-2">
-                  Select time for
+                  Επιλέξτε ώρα για
                   {" "}
                   <span className="text-purple-500 font-semibold">
-                    {new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}
+                    {new Date(`${date}T00:00:00`).toLocaleDateString('el-GR', { day: 'numeric', month: 'long' })}
                   </span>
                 </div>
                 {
@@ -519,7 +526,7 @@ export default function BookingModal({ open, onClose }) {
                       </button>
                     ))}
                     {(!loadingSlots && slots.length === 0) && (
-                      <p className="text-sm text-neutral-400">No free slots</p>
+                      <p className="text-sm text-neutral-400">Δεν υπάρχουν διαθέσιμα</p>
                     )}
                   </div>
                 }
@@ -537,8 +544,8 @@ export default function BookingModal({ open, onClose }) {
                       setBlockCalendar(false);
                     }}
                     className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-white/20 hover:bg-white/10"
-                    aria-label="Back to barber"
-                    title="Back"
+                    aria-label="Πίσω στον κουρέα"
+                    title="Πίσω"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                       <path fillRule="evenodd" d="M12.78 16.28a.75.75 0 0 1-1.06 0l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 1 1 1.06 1.06L7.81 9.25H16a.75.75 0 0 1 0 1.5H7.81l4.97 4.97a.75.75 0 0 1 0 1.06Z" clipRule="evenodd" />
@@ -553,8 +560,8 @@ export default function BookingModal({ open, onClose }) {
                         ? "bg-white text-black hover:bg-neutral-200"
                         : "bg-neutral-400 text-white/80 cursor-not-allowed"
                     }`}
-                    aria-label="Next"
-                    title="Next"
+                    aria-label="Επόμενο"
+                    title="Επόμενο"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                       <path fillRule="evenodd" d="M7.22 3.72a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L12.19 10.75H4a.75.75 0 0 1 0-1.5h8.19L7.22 4.78a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
@@ -569,16 +576,16 @@ export default function BookingModal({ open, onClose }) {
               {/* Selection summary */}
               <div className="p-3 border border-white/10 rounded-md bg-white/5 text-sm flex flex-wrap gap-x-4 gap-y-1">
                 <div>
-                  <span className="text-neutral-400">Barber:</span> {barber || '-'}
+                  <span className="text-neutral-400">Κουρέας:</span> {toGreekBarberUI(barber) || '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Date:</span> {date ? new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' }) : '-'}
+                  <span className="text-neutral-400">Ημερομηνία:</span> {date ? new Date(`${date}T00:00:00`).toLocaleDateString('el-GR', { day: 'numeric', month: 'long' }) : '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Time:</span> {time || '-'}
+                  <span className="text-neutral-400">Ώρα:</span> {time || '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Service:</span> {services[0]?.name || 'Haircut'}
+                  <span className="text-neutral-400">Υπηρεσία:</span> {services[0]?.name || 'Κούρεμα'}
                   {barber && (
                     <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
                   )}
@@ -593,7 +600,7 @@ export default function BookingModal({ open, onClose }) {
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Name"
+                    placeholder="Όνομα"
                     className="flex-1 bg-transparent text-white placeholder:text-neutral-400 outline-none border-0"
                     required
                   />
@@ -617,7 +624,7 @@ export default function BookingModal({ open, onClose }) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email (optional)"
+                    placeholder="Email (προαιρετικό)"
                     className="flex-1 bg-transparent text-white placeholder:text-neutral-400 outline-none border-0"
                   />
                 </div>
@@ -628,8 +635,8 @@ export default function BookingModal({ open, onClose }) {
                   type="button"
                   onClick={() => setTime("")}
                   className="px-3 py-2 rounded-md border border-white/20 text-white hover:bg-white/10 inline-flex items-center gap-2"
-                  aria-label="Back to times"
-                  title="Back"
+                  aria-label="Πίσω στις ώρες"
+                  title="Πίσω"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                     <path fillRule="evenodd" d="M10.78 3.22a.75.75 0 0 1 0 1.06L5.56 9.5H17a.75.75 0 0 1 0 1.5H5.56l5.22 5.22a.75.75 0 1 1-1.06 1.06l-6.5-6.5a.75.75 0 0 1 0-1.06l6.5-6.5a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
@@ -641,7 +648,7 @@ export default function BookingModal({ open, onClose }) {
                   onClick={onConfirm}
                   className="ml-auto px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Booking…" : "Confirm and book"}
+                  {submitting ? "Γίνεται κράτηση…" : "Επιβεβαίωση και κράτηση"}
                 </button>
               </div>
             </form>
