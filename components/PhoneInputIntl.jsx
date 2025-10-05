@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const COUNTRIES = [
   { code: "CY", name: "Cyprus", dial: "+357", flag: "🇨🇾" },
   { code: "GR", name: "Greece", dial: "+30", flag: "🇬🇷" },
+  { code: "PT", name: "Portugal", dial: "+351", flag: "🇵🇹" },
   { code: "GB", name: "United Kingdom", dial: "+44", flag: "🇬🇧" },
   { code: "DE", name: "Germany", dial: "+49", flag: "🇩🇪" },
   { code: "FR", name: "France", dial: "+33", flag: "🇫🇷" },

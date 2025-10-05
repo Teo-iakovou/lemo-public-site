@@ -57,7 +57,7 @@ function BookTimeInner() {
     return () => {
       mounted = false;
     };
-  }, [serviceId, date]);
+  }, [serviceId, date, barberId]);
 
   const backHref = useMemo(() => {
     const p = new URLSearchParams({ serviceId });
@@ -70,7 +70,7 @@ function BookTimeInner() {
       <BookingProgress />
       <h1 className="text-2xl font-semibold">Επιλέξτε ώρα</h1>
       <p className="text-neutral-600">
-        Υπηρεσία: {serviceId || "(καμία)"} • Ημερομηνία: {date || "(καμία)"}
+        Υπηρεσία: {serviceId || "(καμία)"} • Ημερομηνία: {date || "(καμία)"} • Διάρκεια: 40′
       </p>
       {loading && <p className="mt-2">Φόρτωση διαθέσιμων ωρών…</p>}
       {error && <p className="mt-2 text-red-600">{error}</p>}

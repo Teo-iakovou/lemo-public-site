@@ -170,12 +170,12 @@ export default function BookingModal({ open, onClose }) {
         if (id2) cancelAnimationFrame(id2);
       };
     } else {
-      // Animate out, then unmount after transition
+      // Animate out, then unmount after transition (match transition duration)
       setAnimateIn(false);
       const timeout = setTimeout(() => {
         setRender(false);
         resetModalState();
-      }, 500);
+      }, 1000);
       return () => clearTimeout(timeout);
     }
   }, [open]);
@@ -219,6 +219,62 @@ export default function BookingModal({ open, onClose }) {
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
+
+  // Utility: list all YYYY-MM-DD dates for a given month start string
+  function listMonthDates(monthStartStr) {
+    try {
+      const [y, m] = monthStartStr.split('-').map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const out = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(y, m - 1, d);
+        out.push(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`);
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  async function verifyZeroDays(dates, barberId) {
+    // Double-check days that show 0 to avoid false "fully booked" indicators
+    if (!serviceId || !barberId) return;
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const openWeekdays = new Set([2,3,4,5,6]); // Tue-Sat
+    const targets = dates
+      .filter((ds) => ds >= todayStr)
+      .filter((ds) => {
+        const d = new Date(ds + 'T00:00:00');
+        return openWeekdays.has(d.getDay());
+      })
+      .filter((ds) => (highlights[ds] === 0))
+      .filter((ds) => !Object.prototype.hasOwnProperty.call(slotsByDate, ds));
+    const MAX_VERIFY = 12;
+    const limited = targets.slice(0, MAX_VERIFY);
+    const CHUNK = 4;
+    for (let i = 0; i < limited.length; i += CHUNK) {
+      const part = limited.slice(i, i + CHUNK);
+      const results = await Promise.all(part.map(async (ds) => {
+        try {
+          const res = await getAvailability({ serviceId, date: ds, barberId });
+          const arr = Array.isArray(res) ? res : res?.slots || [];
+          return [ds, arr];
+        } catch {
+          return [ds, null];
+        }
+      }));
+      const nextMap = {};
+      const nextCounts = {};
+      for (const [ds, arr] of results) {
+        if (Array.isArray(arr)) {
+          nextMap[ds] = arr;
+          nextCounts[ds] = arr.length;
+        }
+      }
+      if (Object.keys(nextMap).length) setSlotsByDate((prev) => ({ ...prev, ...nextMap }));
+      if (Object.keys(nextCounts).length) setHighlights((prev) => ({ ...prev, ...nextCounts }));
+    }
+  }
   useEffect(() => {
     let aborted = false;
     async function run() {
@@ -238,9 +294,15 @@ export default function BookingModal({ open, onClose }) {
             bundles.push(pack);
           }
           for (const bundle of bundles) {
-            if (bundle && bundle.counts) setHighlights((prev) => ({ ...prev, ...bundle.counts }));
-            const map = bundle?.slots || {};
-            if (map && Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
+            if (bundle) {
+              const counts = bundle.counts || {};
+              const map = bundle.slots || {};
+              // Overlay counts with lengths from provided slots map to avoid false "fully booked"
+              const derived = Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+              const merged = { ...counts, ...derived };
+              if (Object.keys(merged).length) setHighlights((prev) => ({ ...prev, ...merged }));
+              if (Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
+            }
           }
           // Seed firstAvailable from current month only when not preset
           const current = pack?.current || pack; // prefer current
@@ -286,9 +348,16 @@ export default function BookingModal({ open, onClose }) {
           currSlotsDays: Object.keys(map).length,
           nextSlotsDays: Object.keys(nMap).length,
         });
+        // Derive counts from slots maps (more reliable) and overlay on backend counts
+        const derived = Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+        const nDerived = Object.fromEntries(Object.entries(nMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+        const mergedCounts = { ...(counts || {}), ...(nCounts || {}), ...derived, ...nDerived };
         // Replace state instead of merging to avoid mixing barbers' data
-        setHighlights({ ...(counts || {}), ...(nCounts || {}) });
+        setHighlights(mergedCounts);
         setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
+        // Proactively verify a subset of days that appear as 0 (to avoid false purple bars)
+        verifyZeroDays(listMonthDates(currMonthStart), toBarberId(barber));
+        verifyZeroDays(listMonthDates(nextMonthStart), toBarberId(barber));
         // Prefill first available selection and slots when picking a barber
         const first = data?.firstAvailable;
         if (first && !date) {
@@ -339,13 +408,13 @@ export default function BookingModal({ open, onClose }) {
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-500 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-1000 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
 
       {/* Panel: full screen on mobile, centered card on larger screens (zoom + fade-in) */}
       <div
-        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-hidden transform-gpu will-change-transform transition-all duration-500 ease-out ${animateIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
+        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-auto sm:overflow-hidden transform-gpu will-change-transform transition-all duration-1000 ease-out ${animateIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
@@ -354,19 +423,22 @@ export default function BookingModal({ open, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="p-4 sm:p-6 grid grid-cols-1 gap-6">
+        <div
+          className="p-4 sm:p-6 grid grid-cols-1 gap-6"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
+        >
           {/* Step 1: Barber selection */}
           {!barber && (
             <div className="sm:col-span-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 place-items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 place-items-center">
                 {[{ id: "Lemo", name: "Lemo" }, { id: "Forou", name: "Forou" }].map((b) => (
                   <button
                     key={b.id}
                     type="button"
                     onClick={() => setBarberChoice(b.id)}
-                    className={`relative p-5 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[360px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
+                    className={`relative p-3 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[320px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
                   >
-                    <div className={"relative h-44 w-44 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
+                    <div className={"relative h-36 w-36 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
                     >
                       <Image
                         src={b.id === 'Lemo' ? '/DSC_0275.JPG' : '/DSC_0262.JPG'}
@@ -378,15 +450,18 @@ export default function BookingModal({ open, onClose }) {
                         className={`object-cover object-center ${b.id === 'Forou' ? 'transform scale-110' : ''}`}
                       />
                     </div>
-                    <div className="h-px w-11/12 my-3 sm:my-2 bg-white/15" />
-                    <div className="font-extrabold tracking-wide uppercase text-sm sm:text-base">{b.name}</div>
+                    <div className="h-px w-11/12 my-2 sm:my-2 bg-white/15" />
+                    <div className="font-extrabold tracking-wide uppercase text-sm">{b.name}</div>
                     <div className="text-xs sm:text-sm text-white/80 mt-1">
                       {formatEuro(PRICES[toBarberId(b.id)])}
                     </div>
                   </button>
                 ))}
               </div>
-              <div className="mt-4 flex justify-end">
+              <div
+                className="mt-3 flex justify-end"
+                style={{ marginBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
+              >
                 <button
                   type="button"
                   disabled={!barberChoice}
@@ -451,11 +526,21 @@ export default function BookingModal({ open, onClose }) {
                 getHorizonAvailability({ start, days: 35, barberId: toBarberId(barber), include: 'slots' })
                   .then((data) => {
                     const counts = data?.counts || {};
-                    setHighlights((prev) => ({ ...prev, ...counts }));
                     const map = data?.slots || {};
-                    if (map && Object.keys(map).length) {
-                      setSlotsByDate((prev) => ({ ...prev, ...map }));
-                    }
+                    const derived = Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+                    const mergedCounts = { ...counts, ...derived };
+                    setHighlights((prev) => ({ ...prev, ...mergedCounts }));
+                    if (map && Object.keys(map).length) setSlotsByDate((prev) => ({ ...prev, ...map }));
+                    // Verify zeros for this visible month to avoid false "fully booked" bars
+                    const daysInMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 0).getDate();
+                    const monthDates = Array.from({ length: daysInMonth }, (_, i) => {
+                      const d = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth(), i + 1);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      return `${y}-${m}-${day}`;
+                    });
+                    verifyZeroDays(monthDates, toBarberId(barber));
                     // Background prefetch one more month ahead
                     const nextMonth = new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + 1, 1);
                     const nextStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
@@ -463,7 +548,9 @@ export default function BookingModal({ open, onClose }) {
                       .then((nxt) => {
                         const nCounts = nxt?.counts || {};
                         const nMap = nxt?.slots || {};
-                        if (Object.keys(nCounts).length) setHighlights((prev) => ({ ...prev, ...nCounts }));
+                        const nDerived = Object.fromEntries(Object.entries(nMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
+                        const mergedNext = { ...nCounts, ...nDerived };
+                        if (Object.keys(mergedNext).length) setHighlights((prev) => ({ ...prev, ...mergedNext }));
                         if (Object.keys(nMap).length) setSlotsByDate((prev) => ({ ...prev, ...nMap }));
                       })
                       .catch(() => {});

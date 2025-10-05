@@ -10,6 +10,7 @@ import { getAvailability } from "../../../lib/api";
 function BookDateInner() {
   const search = useSearchParams();
   const serviceId = search.get("serviceId") || "";
+  const barberId = (search.get("barberId") || "").toLowerCase();
   const [date, setDate] = useState("");
   const [highlights, setHighlights] = useState({});
   const [loadingHints, setLoadingHints] = useState(false);
@@ -41,7 +42,7 @@ function BookDateInner() {
         const results = await Promise.all(
           part.map(async (ds) => {
             try {
-              const res = await getAvailability({ serviceId, date: ds });
+              const res = await getAvailability({ serviceId, date: ds, barberId: barberId || undefined });
               const arr = Array.isArray(res) ? res : res?.slots || [];
               return [ds, arr.length];
             } catch {
@@ -59,13 +60,14 @@ function BookDateInner() {
     return () => {
       abort = true;
     };
-  }, [serviceId]);
+  }, [serviceId, barberId]);
 
   const nextHref = useMemo(() => {
     if (!serviceId || !date) return "#";
     const p = new URLSearchParams({ serviceId, date });
+    if (barberId) p.set('barberId', barberId);
     return `/book/time?${p.toString()}`;
-  }, [serviceId, date]);
+  }, [serviceId, date, barberId]);
 
   return (
     <main className="max-w-3xl mx-auto p-6">

@@ -25,8 +25,8 @@ function businessWindow(date) {
   // Closed Sun (0) and Mon (1)
   const dow = date.getDay();
   if (dow === 0 || dow === 1) return null;
-  // Saturday until 17:40, Tue–Fri until 19:00
-  if (dow === 6) return { open: 9 * 60, close: 17 * 60 + 40 };
+  // Saturday until 18:20 (allow 17:40 start for 40' slot), Tue–Fri until 19:00
+  if (dow === 6) return { open: 9 * 60, close: 18 * 60 + 20 };
   return { open: 9 * 60, close: 19 * 60 };
 }
 
@@ -134,8 +134,9 @@ export async function GET(request) {
             };
           })
           .filter((a) => toYMD(a.start) === date)
-          // Compare using Greek lowercase id (backend data is Greek)
-          .filter((a) => !greekLower || !a.barber || a.barber === greekLower);
+          // When a specific barber is requested, only consider entries for that barber.
+          // Do NOT treat missing barber as global; keep breaks strictly per-barber.
+          .filter((a) => !greekLower || a.barber === greekLower);
         if (debugMode) {
           dbg.existingCount = existing.length;
           dbg.blocks = existing.map((b) => {
