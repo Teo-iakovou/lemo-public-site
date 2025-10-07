@@ -13,7 +13,8 @@ function BookConfirmInner() {
   const time = search.get("time") || "";
   const name = search.get("name") || "";
   const phone = search.get("phone") || "";
-  const email = search.get("email") || "";
+  // email removed from public UI
+  const dateOfBirth = search.get("dateOfBirth") || "";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,9 +25,9 @@ function BookConfirmInner() {
       ["Time", time],
       ["Name", name],
       ["Phone", phone],
-      email ? ["Email", email] : null,
+      dateOfBirth ? ["Date of birth", dateOfBirth] : null,
     ].filter(Boolean);
-  }, [serviceId, date, time, name, phone, email]);
+  }, [serviceId, date, time, name, phone, dateOfBirth]);
 
   async function onConfirm() {
     setSubmitting(true);
@@ -34,7 +35,7 @@ function BookConfirmInner() {
     try {
       const dateTime = `${date}T${time}`;
       const payload = { serviceId, dateTime, name, phone };
-      if (email) payload.email = email;
+      if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
       const result = await createAppointment(payload);
       const id = result?.id || result?._id || "";
       const p = new URLSearchParams();

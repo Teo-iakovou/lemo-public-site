@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import BookingProgress from "../../../components/BookingProgress";
 import PhoneInputIntl from "../../../components/PhoneInputIntl";
+import DobPicker from "../../../components/DobPicker";
 // Phone input uses a simple tel field
 
 function BookDetailsInner() {
@@ -16,7 +17,8 @@ function BookDetailsInner() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  // email removed from public UI
+  const [dob, setDob] = useState(""); // optional YYYY-MM-DD
 
   const canContinue = useMemo(() => {
     return Boolean(serviceId && date && time && name && phone);
@@ -26,7 +28,8 @@ function BookDetailsInner() {
     e.preventDefault();
     if (!canContinue) return;
     const p = new URLSearchParams({ serviceId, date, time, name, phone });
-    if (email) p.set("email", email);
+    // email removed
+    if (dob) p.set("dateOfBirth", dob);
     router.push(`/book/confirm?${p.toString()}`);
   }
 
@@ -58,20 +61,10 @@ function BookDetailsInner() {
           <PhoneInputIntl value={phone} onChange={setPhone} defaultCountry="CY" />
         </label>
         <label className="block">
-          <div className="mt-2 flex items-center gap-2 p-2 rounded-md border border-neutral-300 bg-white focus-within:border-black">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-500">
-              <path d="M1.94 6.94A2.5 2.5 0 0 1 4.44 4.5h11.12a2.5 2.5 0 0 1 2.5 2.44l-7.06 4.41a1.5 1.5 0 0 1-1.58 0L1.94 6.94Z" />
-              <path d="M18 8.86V13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.86l6.35 3.97a3 3 0 0 0 3.3 0L18 8.86Z" />
-            </svg>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email (optional)"
-              className="flex-1 bg-transparent outline-none border-0"
-            />
-          </div>
+          <span className="text-sm">Date of birth (optional)</span>
+          <DobPicker value={dob} onChange={setDob} />
         </label>
+        {/* Email field removed from public UI */}
         <button
           type="submit"
           disabled={!canContinue}

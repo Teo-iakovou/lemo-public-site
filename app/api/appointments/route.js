@@ -3,7 +3,7 @@ import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { serviceId, dateTime, name, phone, email, barber } = body || {};
+    const { serviceId, dateTime, name, phone, email, barber, dateOfBirth } = body || {};
     if (!dateTime || !name || !phone) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -17,6 +17,7 @@ export async function POST(request) {
       barber: barber || "Lemo",
     };
     if (email) payload.email = email;
+    if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
 
     const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
     if (!base) {

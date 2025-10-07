@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import DobPicker from "./DobPicker";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
 import { getServices, getAvailability, getHorizonAvailability, createAppointment } from "../lib/api";
@@ -25,7 +26,8 @@ export default function BookingModal({ open, onClose }) {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(""); // deprecated in UI; kept for compatibility
+  const [dob, setDob] = useState(""); // YYYY-MM-DD optional
   const [time, setTime] = useState("");
   const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
@@ -61,6 +63,7 @@ export default function BookingModal({ open, onClose }) {
     setName("");
     setPhone("");
     setEmail("");
+    setDob("");
   }
 
   // Dynamic step title shown in the modal header to save vertical space
@@ -388,7 +391,8 @@ export default function BookingModal({ open, onClose }) {
     try {
       const dateTime = `${date}T${time}`;
       const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
-      if (email) payload.email = email;
+      // email removed from public UI; do not include
+      if (dob) payload.dateOfBirth = dob; // pass through to backend
       const result = await createAppointment(payload);
       const id = result?.id || result?._id || "";
       const p = new URLSearchParams();
@@ -414,7 +418,7 @@ export default function BookingModal({ open, onClose }) {
 
       {/* Panel: full screen on mobile, centered card on larger screens (zoom + fade-in) */}
       <div
-        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-auto sm:overflow-hidden transform-gpu will-change-transform transition-all duration-1000 ease-out ${animateIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
+        className={`absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full h-full sm:h-auto sm:w-[720px] bg-black sm:rounded-xl border border-white/10 overflow-auto sm:overflow-visible transform-gpu will-change-transform transition-all duration-1000 ease-out ${animateIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
@@ -701,20 +705,9 @@ export default function BookingModal({ open, onClose }) {
                   defaultCountry="CY"
                 />
               </label>
+              {/* Email field removed from public UI */}
               <label className="block">
-                <div className="mt-1 flex items-center gap-2 p-2 rounded-md border border-white/10 bg-white/5 focus-within:border-purple-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-300">
-                    <path d="M1.94 6.94A2.5 2.5 0 0 1 4.44 4.5h11.12a2.5 2.5 0 0 1 2.5 2.44l-7.06 4.41a1.5 1.5 0 0 1-1.58 0L1.94 6.94Z" />
-                    <path d="M18 8.86V13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.86l6.35 3.97a3 3 0 0 0 3.3 0L18 8.86Z" />
-                  </svg>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email (προαιρετικό)"
-                    className="flex-1 bg-transparent text-white placeholder:text-neutral-400 outline-none border-0"
-                  />
-                </div>
+                <DobPicker value={dob} onChange={setDob} />
               </label>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <div className="mt-6 flex items-center">
