@@ -25,9 +25,8 @@ function businessWindow(date) {
   // Closed Sun (0) and Mon (1)
   const dow = date.getDay();
   if (dow === 0 || dow === 1) return null;
-  // Saturday until 18:20 (allow 17:40 start for 40' slot), Tue–Fri until 19:00
-  if (dow === 6) return { open: 9 * 60, close: 18 * 60 + 20 };
-  return { open: 9 * 60, close: 19 * 60 };
+  // Open 09:00 – 19:40 for all trading days so the final 19:00 slot is available
+  return { open: 9 * 60, close: 19 * 60 + 40 };
 }
 
 function slotify({ date, duration = 40, step = 40 }) {
