@@ -8,17 +8,37 @@ export const dynamic = 'force-dynamic';
 const CACHE = new Map();
 const TTL_MS = 5000; // 5s tiny TTL for snappier UX while keeping freshness
 
+const CY_TIMEZONE = "Europe/Athens";
+
 function toYMD(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CY_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 function parseLocalDate(dateStr) {
   // YYYY-MM-DD to Date at local midnight
   const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function zonedMinutes(date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: CY_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
 }
 
 function businessWindow(date) {
@@ -139,7 +159,7 @@ export async function GET(request) {
         if (debugMode) {
           dbg.existingCount = existing.length;
           dbg.blocks = existing.map((b) => {
-            const startMin = b.start.getHours() * 60 + b.start.getMinutes();
+            const startMin = zonedMinutes(b.start);
             const endMin = startMin + b.duration;
             const fmt = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
             return { type: b.type || 'appointment', startMin, endMin, start: fmt(startMin), end: fmt(endMin) };
@@ -158,14 +178,14 @@ export async function GET(request) {
   for (const c of candidates) {
     const startMinutes = c.start;
     const overlappers = existing.filter((b) => {
-      const bStartMinutes = b.start.getHours() * 60 + b.start.getMinutes();
+      const bStartMinutes = zonedMinutes(b.start);
       return overlaps(startMinutes, duration, bStartMinutes, b.duration);
     });
     if (overlappers.length) {
       removedByOverlap.push({
         slot: c.label,
         overlaps: overlappers.map((b) => {
-          const bs = b.start.getHours() * 60 + b.start.getMinutes();
+          const bs = zonedMinutes(b.start);
           const be = bs + b.duration;
           const fmt = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
           return { type: b.type || 'appointment', start: fmt(bs), end: fmt(be) };
@@ -185,7 +205,7 @@ export async function GET(request) {
   // Apply cutoff if date is today (no booking inside next 60')
   const now = new Date();
   if (toYMD(now) === date) {
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentMinutes = zonedMinutes(now);
     const cutoff = currentMinutes + 60;
     const before = free.map((c) => c.label);
     const removed = [];
