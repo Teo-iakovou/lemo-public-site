@@ -1,26 +1,17 @@
 import { cookies } from "next/headers";
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
-import { normalizeBarberValue } from "../../../lib/barber";
+import { buildAppointmentRequestPayload } from "../../../lib/appointmentPayload";
 import { AUTH_DISABLED } from "../../../lib/auth";
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { serviceId, dateTime, name, phone, email, barber, dateOfBirth } = body || {};
-    if (!dateTime || !name || !phone) {
+    const payload = buildAppointmentRequestPayload(body);
+
+    const { appointmentDateTime, customerName, phoneNumber } = payload;
+    if (!appointmentDateTime || !customerName || !phoneNumber) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
-
-    const payload = {
-      customerName: name,
-      phoneNumber: phone,
-      appointmentDateTime: dateTime,
-      duration: 40,
-      type: "appointment",
-      barber: normalizeBarberValue(barber),
-    };
-    if (email) payload.email = email;
-    if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
 
     const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
     if (!base) {
