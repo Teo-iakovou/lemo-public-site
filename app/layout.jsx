@@ -1,5 +1,8 @@
 import { Geist, Geist_Mono, Bebas_Neue, Permanent_Marker } from "next/font/google";
 import BookingSSRProvider from "../components/BookingSSRProvider";
+import AuthProvider from "../components/AuthProvider";
+import AuthModal from "../components/AuthModal";
+import ProfilePanel from "../components/ProfilePanel";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,8 +36,12 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${graffiti.variable} antialiased`}>
-        <BookingSSRProvider />
-        {children}
+        <AuthProvider>
+          <BookingSSRProvider />
+          {children}
+          <AuthModal />
+          <ProfilePanel />
+        </AuthProvider>
       </body>
     </html>
   );

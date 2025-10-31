@@ -5,18 +5,25 @@ import Footer from "../components/Footer";
 import MarqueeBanner from "../components/MarqueeBanner";
 import Reveal from "../components/Reveal";
 import BookingModal from "../components/BookingModal";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import IntroOverlay from "../components/IntroOverlay";
+import { useAuth } from "../components/AuthProvider";
 
 export default function Home() {
   // Client-only bits for modal open are safe in the app router
   const [open, setOpen] = useState(false);
   const [intro, setIntro] = useState(true);
+  const { requireAuth } = useAuth();
+
+  const openBooking = useCallback(() => {
+    requireAuth(() => setOpen(true));
+  }, [requireAuth]);
+
   useEffect(() => {
-    const handler = () => setOpen(true);
+    const handler = () => openBooking();
     window.addEventListener("open-booking", handler);
     return () => window.removeEventListener("open-booking", handler);
-  }, []);
+  }, [openBooking]);
   // Always land at the hero on reload/navigation and avoid restoring prior scroll
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -83,7 +90,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={150}>
             <div className="flex items-center justify-center">
-              <button onClick={() => setOpen(true)} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
+              <button onClick={openBooking} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
             </div>
           </Reveal>
         </div>
@@ -104,7 +111,7 @@ export default function Home() {
                   <h3 className="text-xl font-display">{s.name}</h3>
                   <span className="text-lg">{s.price}</span>
                 </div>
-                <button onClick={() => setOpen(true)} className="inline-block mt-4 text-sm underline">Κράτηση →</button>
+                <button onClick={openBooking} className="inline-block mt-4 text-sm underline">Κράτηση →</button>
               </Reveal>
             ))}
           </div>

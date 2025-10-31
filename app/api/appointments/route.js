@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
+import { normalizeBarberValue } from "../../../lib/barber";
+import { AUTH_DISABLED } from "../../../lib/auth";
 
 export async function POST(request) {
   try {
@@ -14,7 +17,7 @@ export async function POST(request) {
       appointmentDateTime: dateTime,
       duration: 40,
       type: "appointment",
-      barber: barber || "Lemo",
+      barber: normalizeBarberValue(barber),
     };
     if (email) payload.email = email;
     if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
@@ -25,9 +28,15 @@ export async function POST(request) {
       return Response.json({ id: "local-dev-appointment" }, { status: 200 });
     }
 
+    const headers = { "Content-Type": "application/json" };
+    if (!AUTH_DISABLED) {
+      const token = cookies().get("lemo_auth")?.value || "";
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${base}/api/appointments`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(payload),
     });
     const text = await res.text();
