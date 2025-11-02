@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
+import { getBackendBaseUrl } from "../../../../lib/backend";
 import { AUTH_DISABLED } from "../../../../lib/auth";
-
-function getBackendBase() {
-  return DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
-}
 
 export async function POST(request) {
   if (AUTH_DISABLED) {
@@ -16,7 +12,7 @@ export async function POST(request) {
     if (!phone) {
       return NextResponse.json({ error: "Missing phone number" }, { status: 400 });
     }
-    const base = getBackendBase();
+    const base = getBackendBaseUrl();
     if (!base) {
       return NextResponse.json({ error: "Backend unavailable" }, { status: 503 });
     }

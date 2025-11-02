@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
+import { getBackendBaseUrl } from "../../../lib/backend";
 import { buildAppointmentRequestPayload } from "../../../lib/appointmentPayload";
 import { AUTH_DISABLED } from "../../../lib/auth";
 
@@ -13,7 +13,7 @@ export async function POST(request) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
+    const base = getBackendBaseUrl();
     if (!base) {
       // No backend configured; return a fake id to complete the flow in dev
       return Response.json({ id: "local-dev-appointment" }, { status: 200 });
