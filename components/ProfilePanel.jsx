@@ -74,7 +74,7 @@ export default function ProfilePanel() {
 
   return (
     <div className="fixed inset-0 z-[110] flex justify-end bg-black/70 backdrop-blur-sm">
-      <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-y-auto">
+      <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-hidden">
         <header className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-display">Ο λογαριασμός μου</h2>
