@@ -95,7 +95,7 @@ export default function ProfilePanel() {
       setError("");
       setInfoMessage("");
       try {
-        const res = await fetch(`/api/appointments/mine/${id}`, {
+        const res = await fetch(`/api/appointments/mine?id=${encodeURIComponent(id)}`, {
           method: "DELETE",
         });
         const data = await res.json().catch(() => ({}));
