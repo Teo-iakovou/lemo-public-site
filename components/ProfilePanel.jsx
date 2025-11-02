@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 
 export default function ProfilePanel() {
@@ -8,18 +8,23 @@ export default function ProfilePanel() {
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+  const [cancelingId, setCancelingId] = useState(null);
   const [lastFocusedElement, setLastFocusedElement] = useState(null);
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     if (!profileOpen) {
       setAppointments([]);
       setError("");
+      setInfoMessage("");
       return;
     }
     let canceled = false;
     async function load() {
       setLoading(true);
       setError("");
+      setInfoMessage("");
       try {
         const res = await fetch("/api/appointments/mine", { cache: "no-store" });
         const data = await res.json().catch(() => ({}));
@@ -70,11 +75,49 @@ export default function ProfilePanel() {
     };
   }, [profileOpen, lastFocusedElement]);
 
+  useEffect(() => {
+    if (infoMessage) {
+      setShowToast(true);
+      const timeout = window.setTimeout(() => {
+        setShowToast(false);
+        setInfoMessage("");
+      }, 4000);
+      return () => window.clearTimeout(timeout);
+    }
+    setShowToast(false);
+    return undefined;
+  }, [infoMessage]);
+
+  const handleCancel = useCallback(
+    async (id) => {
+      if (!id || cancelingId) return;
+      setCancelingId(id);
+      setError("");
+      setInfoMessage("");
+      try {
+        const res = await fetch(`/api/appointments/mine/${id}`, {
+          method: "DELETE",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || "Η ακύρωση απέτυχε.");
+        }
+        setAppointments((prev) => prev.filter((appt) => appt._id !== id));
+        setInfoMessage(data?.message || "Το ραντεβού ακυρώθηκε.");
+      } catch (err) {
+        setError(err.message || "Η ακύρωση απέτυχε.");
+      } finally {
+        setCancelingId(null);
+      }
+    },
+    [cancelingId]
+  );
+
   if (!profileOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[110] flex justify-end bg-black/70 backdrop-blur-sm">
-      <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-hidden">
+      <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-y-auto">
         <header className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-display">Ο λογαριασμός μου</h2>
@@ -117,7 +160,9 @@ export default function ProfilePanel() {
               const timeLabel = start.toLocaleTimeString("el-GR", {
                 hour: "2-digit",
                 minute: "2-digit",
+                hour12: false,
               });
+              const isUpcoming = start.getTime() > Date.now();
               return (
                 <li
                   key={appt._id || `${appt.appointmentDateTime}-${appt.barber}`}
@@ -135,11 +180,30 @@ export default function ProfilePanel() {
                       ? "Διάλειμμα"
                       : "Κλείδωμα"}
                   </div>
+                  {appt.type === "appointment" && isUpcoming && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleCancel(appt._id)}
+                        disabled={cancelingId === appt._id}
+                        className="rounded border border-red-400 px-3 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        {cancelingId === appt._id ? "Ακύρωση..." : "Ακύρωση ραντεβού"}
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}
           </ul>
         </section>
+        {showToast && infoMessage && (
+          <div className="pointer-events-none absolute left-1/2 bottom-6 -translate-x-1/2">
+            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-emerald-500/90 px-4 py-2 shadow-lg">
+              <span className="text-sm font-medium text-white">{infoMessage}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

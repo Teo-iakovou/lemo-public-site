@@ -161,7 +161,10 @@ export default function AuthModal() {
         setView("login");
       }
     } catch (err) {
-      setFormError(err.message || "Κάτι πήγε στραβά.");
+      const msg = String(err.message || "").toLowerCase().includes("invalid credentials")
+        ? "Λάθος στοιχεία σύνδεσης."
+        : err.message || "Κάτι πήγε στραβά.";
+      setFormError(msg);
     }
   };
 
