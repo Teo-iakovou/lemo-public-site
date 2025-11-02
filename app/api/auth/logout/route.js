@@ -1,5 +1,7 @@
+import { NextResponse } from "next/server";
+
 export async function POST() {
-  const response = new Response(null, { status: 204 });
+  const response = new NextResponse(null, { status: 204 });
   response.cookies.set({
     name: "lemo_auth",
     value: "",

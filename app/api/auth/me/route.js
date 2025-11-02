@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
 import { AUTH_DISABLED } from "../../../../lib/auth";
 
@@ -8,17 +9,17 @@ function getBackendBase() {
 
 export async function GET() {
   if (AUTH_DISABLED) {
-    return Response.json({ user: null }, { status: 200 });
+    return NextResponse.json({ user: null }, { status: 200 });
   }
   const token = cookies().get("lemo_auth")?.value || "";
   if (!token) {
-    return Response.json({ user: null }, { status: 401 });
+    return NextResponse.json({ user: null }, { status: 401 });
   }
   const base = getBackendBase();
   if (!base) {
-    return Response.json({ user: null }, { status: 503 });
+    return NextResponse.json({ user: null }, { status: 503 });
   }
-  const res = await fetch(`${base}/api/auth/me`, {
+  const res = await fetch(`${base}/api/public-auth/me`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -27,7 +28,7 @@ export async function GET() {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const response = Response.json(
+    const response = NextResponse.json(
       { user: null, error: data?.message || "Unauthorized" },
       { status: res.status }
     );
@@ -42,5 +43,5 @@ export async function GET() {
     });
     return response;
   }
-  return Response.json({ user: data.user });
+  return NextResponse.json({ user: data.user });
 }

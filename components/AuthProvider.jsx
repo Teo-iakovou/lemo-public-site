@@ -31,6 +31,8 @@ const disabledAuthValue = Object.freeze({
   closeAuthModal: noop,
   setAuthMode: noop,
   authenticate: asyncNoop,
+  requestPasswordReset: asyncNoop,
+  resetPasswordWithOtp: asyncNoop,
   requireAuth: disabledRequireAuth,
   logout: noop,
   profileOpen: false,
@@ -94,14 +96,18 @@ export default function AuthProvider({ children }) {
     setModalState((prev) => ({ ...prev, mode, error: "" }));
   }, []);
 
-  const authenticate = useCallback(async ({ mode, name, password }) => {
+  const authenticate = useCallback(async ({ mode, name, password, phone }) => {
     setModalState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+      const payload =
+        mode === "signup"
+          ? { name, password, phone }
+          : { name, password };
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -114,6 +120,54 @@ export default function AuthProvider({ children }) {
         pendingCallbackRef.current = null;
       }
       return data.user || null;
+    } catch (error) {
+      setModalState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error.message || "Σφάλμα",
+      }));
+      throw error;
+    }
+  }, []);
+
+  const requestPasswordReset = useCallback(async (phone) => {
+    setModalState((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await fetch("/api/auth/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Αποτυχία αποστολής OTP");
+      }
+      setModalState((prev) => ({ ...prev, loading: false, error: "" }));
+      return true;
+    } catch (error) {
+      setModalState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error.message || "Σφάλμα",
+      }));
+      throw error;
+    }
+  }, []);
+
+  const resetPasswordWithOtp = useCallback(async ({ phone, otp, password }) => {
+    setModalState((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await fetch("/api/auth/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Αποτυχία επαναφοράς κωδικού");
+      }
+      setModalState((prev) => ({ ...prev, loading: false, error: "" }));
+      return true;
     } catch (error) {
       setModalState((prev) => ({
         ...prev,
@@ -163,6 +217,8 @@ export default function AuthProvider({ children }) {
       closeAuthModal,
       setAuthMode,
       authenticate,
+      requestPasswordReset,
+      resetPasswordWithOtp,
       requireAuth,
       logout,
       profileOpen,
@@ -178,6 +234,8 @@ export default function AuthProvider({ children }) {
       closeAuthModal,
       setAuthMode,
       authenticate,
+      requestPasswordReset,
+      resetPasswordWithOtp,
       requireAuth,
       logout,
       profileOpen,

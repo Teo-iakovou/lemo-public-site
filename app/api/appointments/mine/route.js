@@ -18,7 +18,7 @@ export async function GET() {
   if (!base) {
     return Response.json({ appointments: [] }, { status: 503 });
   }
-  const res = await fetch(`${base}/api/appointments/mine`, {
+  const res = await fetch(`${base}/api/public-appointments/mine`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
