@@ -8,6 +8,7 @@ export default function ProfilePanel() {
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
+  const [lastFocusedElement, setLastFocusedElement] = useState(null);
 
   useEffect(() => {
     if (!profileOpen) {
@@ -42,6 +43,32 @@ export default function ProfilePanel() {
       canceled = true;
     };
   }, [profileOpen, logout]);
+
+  useEffect(() => {
+    if (profileOpen) {
+      setLastFocusedElement(document.activeElement);
+      document.body.style.top = `-${window.scrollY}px`;
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      const top = document.body.style.top;
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      if (top) {
+        const scrollY = parseInt(top || "0", 10) * -1;
+        window.scrollTo(0, Number.isFinite(scrollY) ? scrollY : 0);
+      }
+      if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+        lastFocusedElement.focus();
+      }
+    }
+    return () => {
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+    };
+  }, [profileOpen, lastFocusedElement]);
 
   if (!profileOpen) return null;
 
