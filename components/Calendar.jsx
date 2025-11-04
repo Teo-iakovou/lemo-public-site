@@ -27,6 +27,8 @@ function endOfMonth(d) {
 // Greek weekday abbreviations, Monday-first: Δευ, Τρι, Τετ, Πεμ, Παρ, Σαβ, Κυρ
 const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
+const DISABLED_MONTHS = new Set([11]); // December (0-indexed)
+
 export default function Calendar({ value, onChange, minDate, maxDate, closedWeekdays = [], highlights = {}, onMonthChange }) {
   const today = useMemo(() => {
     const t = new Date();
@@ -70,11 +72,13 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
     const ds = toYMD(d);
     const outOfRange = ds < toYMD(min) || ds > toYMD(max);
     const isClosed = closedWeekdays.includes(d.getDay()); // 0=Sun,1=Mon,...
-    return outOfRange || isClosed;
+    const isDisabledMonth = DISABLED_MONTHS.has(d.getMonth());
+    return outOfRange || isClosed || isDisabledMonth;
   }
 
   const canPrev = startOfMonth(cursor) > startOfMonth(min);
   const canNext = startOfMonth(cursor) < startOfMonth(max);
+  const cursorMonthDisabled = DISABLED_MONTHS.has(cursor.getMonth());
 
   return (
     <div className="relative border border-white/10 rounded-lg overflow-hidden">
@@ -136,6 +140,11 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             Επόμενος
           </button>
         </div>
+        {cursorMonthDisabled && (
+          <div className="px-4 py-2 text-center text-xs text-amber-200 bg-amber-500/10 border-t border-amber-500/20">
+            Οι κρατήσεις για τον Δεκέμβριο είναι προσωρινά απενεργοποιημένες.
+          </div>
+        )}
 
         <div className="grid grid-cols-7 gap-0">
           {WEEKDAYS.map((d) => (
