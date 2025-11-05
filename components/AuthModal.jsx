@@ -43,6 +43,7 @@ export default function AuthModal() {
   const [formError, setFormError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [pendingResetPhone, setPendingResetPhone] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -54,6 +55,7 @@ export default function AuthModal() {
       setFormError("");
       setInfoMessage("");
       setPendingResetPhone("");
+      setShowPassword(false);
     }
   }, [open, mode]);
 
@@ -66,6 +68,7 @@ export default function AuthModal() {
       if (mode === "signup") {
         setName((prev) => prev.trim());
       }
+      setShowPassword(false);
     }
   }, [mode, open]);
 
@@ -78,6 +81,7 @@ export default function AuthModal() {
     setInfoMessage("");
     setOtp("");
     setPendingResetPhone("");
+    setShowPassword(false);
   };
 
   const goToSignup = () => {
@@ -87,6 +91,7 @@ export default function AuthModal() {
     setInfoMessage("");
     setOtp("");
     setPendingResetPhone("");
+    setShowPassword(false);
   };
 
   const goToForgot = () => {
@@ -95,6 +100,7 @@ export default function AuthModal() {
     setInfoMessage("");
     setOtp("");
     setPendingResetPhone("");
+    setShowPassword(false);
   };
 
   const onSubmit = async (event) => {
@@ -226,14 +232,54 @@ export default function AuthModal() {
           )}
 
           {showPasswordField && (
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-              placeholder={view === "reset" ? "Νέος κωδικός" : "Κωδικός πρόσβασης"}
-              disabled={loading}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 pr-12 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
+                placeholder={view === "reset" ? "Νέος κωδικός" : "Κωδικός πρόσβασης"}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-3 flex items-center text-white/70 hover:text-white"
+                tabIndex={-1}
+                aria-label={showPassword ? "Απόκρυψη κωδικού" : "Εμφάνιση κωδικού"}
+              >
+                {showPassword ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                    <circle cx="12" cy="12" r="3" />
+                    <line x1="4" y1="4" x2="20" y2="20" />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           )}
 
           {infoMessage && (
