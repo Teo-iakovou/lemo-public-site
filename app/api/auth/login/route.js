@@ -8,9 +8,10 @@ export async function POST(request) {
   }
   try {
     const body = await request.json();
+    const phone = String(body?.phone || body?.phoneNumber || "").trim();
     const username = String(body?.name || body?.username || "").trim();
     const password = String(body?.password || "");
-    if (!username || !password) {
+    if ((!phone && !username) || !password) {
       return NextResponse.json({ error: "Missing credentials" }, { status: 400 });
     }
     const base = getBackendBaseUrl();
@@ -20,7 +21,12 @@ export async function POST(request) {
     const res = await fetch(`${base}/api/public-auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        username,
+        phoneNumber: phone,
+        phone,
+        password,
+      }),
       cache: "no-store",
     });
     const data = await res.json().catch(() => ({}));

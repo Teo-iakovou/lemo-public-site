@@ -100,10 +100,15 @@ export default function AuthProvider({ children }) {
     setModalState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
-      const payload =
-        mode === "signup"
-          ? { name, password, phone }
-          : { name, password };
+      let payload;
+      if (mode === "signup") {
+        payload = { name, password, phone };
+      } else {
+        payload = { phone, password };
+        if ((!phone || !phone.trim()) && name) {
+          payload.phone = name;
+        }
+      }
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

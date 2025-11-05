@@ -107,11 +107,11 @@ export default function AuthModal() {
 
     try {
       if (view === "login") {
-        if (!trimmedName || !password) {
-          setFormError("Συμπληρώστε όνομα και κωδικό.");
+        if (!normalizedPhone || !password) {
+          setFormError("Συμπληρώστε κινητό και κωδικό.");
           return;
         }
-        await authenticate({ mode: "login", name: trimmedName, password });
+        await authenticate({ mode: "login", phone: normalizedPhone, password });
         setPassword("");
       } else if (view === "signup") {
         if (!trimmedName || !password || !normalizedPhone) {
@@ -173,8 +173,8 @@ export default function AuthModal() {
   const description = DESCRIPTIONS[view] || "";
   const cta = CTA_LABEL[view] || CTA_LABEL.login;
 
-  const showNameField = view === "login" || view === "signup";
-  const showPhoneField = view === "signup" || view === "forgot" || view === "reset";
+  const showNameField = view === "signup";
+  const showPhoneField = view === "login" || view === "signup" || view === "forgot" || view === "reset";
   const showPasswordField = view === "login" || view === "signup" || view === "reset";
 
   return (
