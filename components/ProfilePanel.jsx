@@ -36,7 +36,16 @@ export default function ProfilePanel() {
           }
           throw new Error(data?.error || "Αποτυχία φόρτωσης ραντεβού.");
         }
-        if (!canceled) setAppointments(data.appointments || []);
+        if (!canceled) {
+          const list = Array.isArray(data.appointments) ? data.appointments : [];
+          setAppointments(
+            list.slice().sort((a, b) => {
+              const da = new Date(a.appointmentDateTime).getTime();
+              const db = new Date(b.appointmentDateTime).getTime();
+              return db - da;
+            })
+          );
+        }
       } catch (err) {
         if (!canceled) setError(err.message || "Σφάλμα");
       } finally {

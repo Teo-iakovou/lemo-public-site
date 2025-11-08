@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 
 const HEADINGS = {
@@ -44,6 +44,7 @@ export default function AuthModal() {
   const [infoMessage, setInfoMessage] = useState("");
   const [pendingResetPhone, setPendingResetPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const lockStateRef = useRef(null);
 
   useEffect(() => {
     if (!open) {
@@ -71,6 +72,43 @@ export default function AuthModal() {
       setShowPassword(false);
     }
   }, [mode, open]);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return undefined;
+    const body = document.body;
+    const prevCount = Number(body.dataset.modalLockCount || 0);
+    if (prevCount === 0) {
+      lockStateRef.current = {
+        top: body.style.top,
+        position: body.style.position,
+        width: body.style.width,
+        overflow: body.style.overflow,
+        scrollY: window.scrollY,
+      };
+      body.style.top = `-${window.scrollY}px`;
+      body.style.position = "fixed";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+    }
+    body.dataset.modalLockCount = String(prevCount + 1);
+
+    return () => {
+      const count = Number(body.dataset.modalLockCount || 1) - 1;
+      if (count <= 0) {
+        const state = lockStateRef.current || {};
+        body.style.position = state.position || "";
+        body.style.width = state.width || "";
+        body.style.top = state.top || "";
+        body.style.overflow = state.overflow || "";
+        body.removeAttribute("data-modal-lock-count");
+        const y = state.scrollY || 0;
+        window.scrollTo(0, y);
+        lockStateRef.current = null;
+      } else {
+        body.dataset.modalLockCount = String(count);
+      }
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -184,8 +222,8 @@ export default function AuthModal() {
   const showPasswordField = view === "login" || view === "signup" || view === "reset";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-black/70 to-black/90 p-8 shadow-[0_25px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4 py-8 overflow-y-auto">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-black/70 to-black/90 p-8 shadow-[0_25px_60px_rgba(0,0,0,0.45)] backdrop-blur max-h-full overflow-y-auto">
         <div className="text-center space-y-2 mb-6">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">Lemo Barbershop</p>
           <h2 className="text-2xl font-display text-white">{heading}</h2>

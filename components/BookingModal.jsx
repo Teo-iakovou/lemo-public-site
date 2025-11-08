@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import DobPicker from "./DobPicker";
@@ -35,6 +35,7 @@ export default function BookingModal({ open, onClose }) {
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
   const [animateForm, setAnimateForm] = useState(false);
+  const bodyLockRef = useRef(null);
 
   // UI-only per-barber prices (EUR)
   const PRICES = { lemo: 15, forou: 10 };
@@ -146,6 +147,43 @@ export default function BookingModal({ open, onClose }) {
     if (open) {
       resetModalState();
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return undefined;
+    const body = document.body;
+    const prev = Number(body.dataset.modalLockCount || 0);
+    if (prev === 0) {
+      bodyLockRef.current = {
+        top: body.style.top,
+        position: body.style.position,
+        width: body.style.width,
+        overflow: body.style.overflow,
+        scrollY: window.scrollY,
+      };
+      body.style.top = `-${window.scrollY}px`;
+      body.style.position = "fixed";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+    }
+    body.dataset.modalLockCount = String(prev + 1);
+
+    return () => {
+      const count = Number(body.dataset.modalLockCount || 1) - 1;
+      if (count <= 0) {
+        const state = bodyLockRef.current || {};
+        body.style.position = state.position || "";
+        body.style.width = state.width || "";
+        body.style.top = state.top || "";
+        body.style.overflow = state.overflow || "";
+        body.removeAttribute("data-modal-lock-count");
+        const y = state.scrollY || 0;
+        window.scrollTo(0, y);
+        bodyLockRef.current = null;
+      } else {
+        body.dataset.modalLockCount = String(count);
+      }
+    };
   }, [open]);
 
   // Fade-in animation for the details form when entering the final step
@@ -663,7 +701,12 @@ export default function BookingModal({ open, onClose }) {
             )}
 
             {time && (
-            <form className={`grid gap-3 mt-4 transition-opacity duration-500 ease-out ${animateForm ? 'opacity-100' : 'opacity-0'}`} onSubmit={(e) => e.preventDefault()}>
+            <form
+              className={`grid gap-3 mt-4 transition-opacity duration-500 ease-out ${
+                animateForm ? "opacity-100" : "opacity-0"
+              } pb-24 sm:pb-0`}
+              onSubmit={(e) => e.preventDefault()}
+            >
               {/* Selection summary */}
               <div className="p-3 border border-white/10 rounded-md bg-white/5 text-sm flex flex-wrap gap-x-4 gap-y-1">
                 <div>
@@ -710,11 +753,14 @@ export default function BookingModal({ open, onClose }) {
                 <DobPicker value={dob} onChange={setDob} />
               </label>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <div className="mt-6 flex items-center">
+              <div
+                className="sticky bottom-0 left-0 right-0 z-10 -mx-2 flex items-center gap-3 bg-black/90 px-2 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0"
+                style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px))" }}
+              >
                 <button
                   type="button"
                   onClick={() => setTime("")}
-                  className="px-3 py-2 rounded-md border border-white/20 text-white hover:bg-white/10 inline-flex items-center gap-2"
+                  className="px-3 py-2 rounded-md border border-white/20 text-white hover:bg-white/10 inline-flex items-center gap-2 sm:mt-0"
                   aria-label="Πίσω στις ώρες"
                   title="Πίσω"
                 >
