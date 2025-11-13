@@ -30,6 +30,9 @@ const graffiti = Permanent_Marker({
 export const metadata = {
   title: "Lemo Barbershop",
   description: "Book your next haircut with Lemo.",
+  icons: {
+    icon: "/lemobarberfavicon.png",
+  },
 };
 
 export default function RootLayout({ children }) {

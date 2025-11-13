@@ -151,7 +151,12 @@ export default function ProfilePanel() {
               Αποσύνδεση
             </button>
           </div>
-          {loading && <p className="text-sm text-white/60">Φόρτωση…</p>}
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-white/80">
+              <span className="h-4 w-4 animate-spin rounded-full border border-white/30 border-t-white" />
+              Φόρτωση ραντεβού…
+            </div>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           {!loading && !error && appointments.length === 0 && (
             <p className="text-sm text-white/60">
