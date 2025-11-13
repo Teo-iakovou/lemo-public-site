@@ -31,9 +31,12 @@ export const metadata = {
   title: "Lemo Barbershop",
   description: "Book your next haircut with Lemo.",
   icons: {
-    icon: "/favicon.ico",                  // Google prefers this
-    shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",        // optional but good
+    icon: [
+      { url: "/lemobarberfavicon.png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: ["/favicon.ico"],
+    apple: ["/lemobarberfavicon.png"],
   },
 };
 
