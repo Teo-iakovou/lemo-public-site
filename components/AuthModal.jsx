@@ -238,7 +238,6 @@ export default function AuthModal() {
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
               placeholder="Όνομα χρήστη"
-              autoFocus
               disabled={loading}
             />
           )}
@@ -250,7 +249,6 @@ export default function AuthModal() {
               onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
               placeholder="Τηλέφωνο"
-              autoFocus={!showNameField && view !== "reset"}
               disabled={loading}
             />
           )}
@@ -264,7 +262,6 @@ export default function AuthModal() {
               maxLength={6}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition tracking-[0.3em] text-center"
               placeholder="OTP"
-              autoFocus
               disabled={loading}
             />
           )}
