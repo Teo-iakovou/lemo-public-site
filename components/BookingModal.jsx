@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import DobPicker from "./DobPicker";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
-import { getServices, getAvailability, getHorizonAvailability, createAppointment } from "../lib/api";
+import {
+  getServices,
+  getAvailability,
+  getHorizonAvailability,
+  createAppointment,
+  getPublicSettings,
+} from "../lib/api";
+import { DEFAULT_PUBLIC_SETTINGS } from "../lib/publicSettings";
 
 export default function BookingModal({ open, onClose }) {
   const router = useRouter();
@@ -23,6 +30,8 @@ export default function BookingModal({ open, onClose }) {
   const [slots, setSlots] = useState([]);
   const [slotsByDate, setSlotsByDate] = useState({});
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [publicSettings, setPublicSettings] = useState(DEFAULT_PUBLIC_SETTINGS);
+  const [loadingPublicSettings, setLoadingPublicSettings] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -92,6 +101,51 @@ export default function BookingModal({ open, onClose }) {
   // Allow navigation through the end of next month
   const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
   const maxDate = `${endOfNextMonth.getFullYear()}-${String(endOfNextMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfNextMonth.getDate()).padStart(2, '0')}`;
+  const closedMonthsSet = useMemo(
+    () => new Set(Array.isArray(publicSettings.closedMonths) ? publicSettings.closedMonths : []),
+    [publicSettings.closedMonths]
+  );
+  const blockedDatesSet = useMemo(
+    () => new Set(publicSettings.blockedDates || []),
+    [publicSettings.blockedDates]
+  );
+  const allowedDatesSet = useMemo(
+    () => new Set(publicSettings.allowedDates || []),
+    [publicSettings.allowedDates]
+  );
+  const whitelistDatesSet = useMemo(
+    () => new Set(Object.keys(publicSettings.specialDayHours || {})),
+    [publicSettings.specialDayHours]
+  );
+  const extraDatesSet = useMemo(
+    () => new Set(Object.keys(publicSettings.extraDaySlots || {})),
+    [publicSettings.extraDaySlots]
+  );
+  const manualOpenDatesSet = useMemo(() => {
+    const next = new Set();
+    allowedDatesSet.forEach((value) => next.add(value));
+    whitelistDatesSet.forEach((value) => next.add(value));
+    extraDatesSet.forEach((value) => next.add(value));
+    return next;
+  }, [allowedDatesSet, whitelistDatesSet, extraDatesSet]);
+  const blockedDatesList = useMemo(() => Array.from(blockedDatesSet), [blockedDatesSet]);
+  const disabledMonthsList = useMemo(() => Array.from(closedMonthsSet), [closedMonthsSet]);
+  const manualOpenDatesList = useMemo(() => Array.from(manualOpenDatesSet), [manualOpenDatesSet]);
+  const isDateManuallyClosed = useCallback(
+    (ds) => {
+      if (!ds) return false;
+      if (blockedDatesSet.has(ds)) return true;
+      const parsed = new Date(`${ds}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return blockedDatesSet.has(ds);
+      const monthClosed = closedMonthsSet.has(parsed.getMonth());
+      return monthClosed && !manualOpenDatesSet.has(ds);
+    },
+    [blockedDatesSet, closedMonthsSet, manualOpenDatesSet]
+  );
+  const isDateManuallyOpen = useCallback(
+    (ds) => manualOpenDatesSet.has(ds),
+    [manualOpenDatesSet]
+  );
 
   function toGreekBarber(id) {
     if (!id) return "";
@@ -130,6 +184,31 @@ export default function BookingModal({ open, onClose }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    setLoadingPublicSettings(true);
+    getPublicSettings()
+      .then((data) => {
+        if (!cancelled && data) {
+          setPublicSettings(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPublicSettings(DEFAULT_PUBLIC_SETTINGS);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingPublicSettings(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   // Preload barber images as soon as modal opens for instant paint
   useEffect(() => {
     if (!open) return;
@@ -148,6 +227,13 @@ export default function BookingModal({ open, onClose }) {
       resetModalState();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (date && isDateManuallyClosed(date)) {
+      setTime("");
+      setSlots([]);
+    }
+  }, [date, isDateManuallyClosed]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return undefined;
@@ -225,7 +311,18 @@ export default function BookingModal({ open, onClose }) {
   useEffect(() => {
     let mounted = true;
     async function run() {
-      if (!serviceId || !date) return;
+      if (!serviceId || !date || !barber) return;
+      if (isDateManuallyClosed(date)) {
+        setSlots([]);
+        setLoadingSlots(false);
+        setSlotsByDate((prev) => {
+          if (!prev[date]) return prev;
+          const next = { ...prev };
+          delete next[date];
+          return next;
+        });
+        return;
+      }
       const hasPre = Object.prototype.hasOwnProperty.call(slotsByDate, date);
       if (debugEnabled) console.debug('[Booking] date-change', { barberId: toBarberId(barber), date, hasPre, preCount: hasPre ? (slotsByDate[date]?.length ?? 0) : undefined });
       // Show any preloaded slots immediately for snappy UI, but still refresh from per-day endpoint
@@ -253,13 +350,22 @@ export default function BookingModal({ open, onClose }) {
     return () => {
       mounted = false;
     };
-  }, [serviceId, date, barber]);
+  }, [serviceId, date, barber, isDateManuallyClosed]);
 
   // Prefetch availability counts and per-day slots via horizon; prefill first available
   const [highlights, setHighlights] = useState({});
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
+  const calendarBusy = blockCalendar || loadingPublicSettings;
+  const calendarHighlights = useMemo(() => {
+    if (!blockedDatesSet.size) return highlights;
+    const next = { ...highlights };
+    blockedDatesSet.forEach((ds) => {
+      next[ds] = 0;
+    });
+    return next;
+  }, [highlights, blockedDatesSet]);
 
   // Utility: list all YYYY-MM-DD dates for a given month start string
   function listMonthDates(monthStartStr) {
@@ -286,6 +392,8 @@ export default function BookingModal({ open, onClose }) {
       .filter((ds) => ds >= todayStr)
       .filter((ds) => {
         const d = new Date(ds + 'T00:00:00');
+        if (isDateManuallyClosed(ds)) return false;
+        if (isDateManuallyOpen(ds)) return true;
         return openWeekdays.has(d.getDay());
       })
       .filter((ds) => (highlights[ds] === 0))
@@ -531,7 +639,7 @@ export default function BookingModal({ open, onClose }) {
           <div className="relative">
             <div
               className={`transition-opacity duration-300 ease-out ${
-                blockCalendar ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                calendarBusy ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}
             >
               <Calendar
@@ -545,7 +653,10 @@ export default function BookingModal({ open, onClose }) {
                 minDate={minDate}
                 maxDate={maxDate}
                 closedWeekdays={[0, 1]}
-                highlights={highlights}
+                highlights={calendarHighlights}
+                disabledMonths={disabledMonthsList}
+                blockedDates={blockedDatesList}
+                allowedDates={manualOpenDatesList}
                 onMonthChange={(firstOfMonth) => {
                 // When navigating months, warm counts for that visible range
                 const start = `${firstOfMonth.getFullYear()}-${String(firstOfMonth.getMonth() + 1).padStart(2, '0')}-01`;
@@ -607,7 +718,7 @@ export default function BookingModal({ open, onClose }) {
               }}
               />
             </div>
-            {(blockCalendar && (loadingMonth || loadingHints)) && (
+            {(calendarBusy && (loadingMonth || loadingHints || loadingPublicSettings)) && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity duration-200 ease-out opacity-100">
                 <div
                   aria-label="Φόρτωση διαθεσιμότητας"

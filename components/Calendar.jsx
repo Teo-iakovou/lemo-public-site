@@ -27,9 +27,18 @@ function endOfMonth(d) {
 // Greek weekday abbreviations, Monday-first: Δευ, Τρι, Τετ, Πεμ, Παρ, Σαβ, Κυρ
 const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
 
-const DISABLED_MONTHS = new Set([11]); // December (0-indexed)
-
-export default function Calendar({ value, onChange, minDate, maxDate, closedWeekdays = [], highlights = {}, onMonthChange }) {
+export default function Calendar({
+  value,
+  onChange,
+  minDate,
+  maxDate,
+  closedWeekdays = [],
+  highlights = {},
+  onMonthChange,
+  disabledMonths = [11],
+  blockedDates = [],
+  allowedDates = [],
+}) {
   const today = useMemo(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
@@ -40,6 +49,18 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
   const max = maxDate ? new Date(maxDate + "T00:00:00") : addDays(today, 365);
 
   const [cursor, setCursor] = useState(selected || today);
+  const disabledMonthsSet = useMemo(
+    () => new Set(Array.isArray(disabledMonths) ? disabledMonths : []),
+    [disabledMonths]
+  );
+  const blockedDatesSet = useMemo(
+    () => new Set(Array.isArray(blockedDates) ? blockedDates : []),
+    [blockedDates]
+  );
+  const allowedDatesSet = useMemo(
+    () => new Set(Array.isArray(allowedDates) ? allowedDates : []),
+    [allowedDates]
+  );
 
   const month = useMemo(() => {
     const start = startOfMonth(cursor);
@@ -71,14 +92,31 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
   function isDisabled(d) {
     const ds = toYMD(d);
     const outOfRange = ds < toYMD(min) || ds > toYMD(max);
-    const isClosed = closedWeekdays.includes(d.getDay()); // 0=Sun,1=Mon,...
-    const isDisabledMonth = DISABLED_MONTHS.has(d.getMonth());
-    return outOfRange || isClosed || isDisabledMonth;
+    const manualOpen = allowedDatesSet.has(ds);
+    const manualClosed = blockedDatesSet.has(ds);
+    const weekdayClosed = closedWeekdays.includes(d.getDay());
+    const monthClosed = disabledMonthsSet.has(d.getMonth());
+    const derivedClosed = manualClosed || ((weekdayClosed || monthClosed) && !manualOpen);
+    return outOfRange || derivedClosed;
   }
 
   const canPrev = startOfMonth(cursor) > startOfMonth(min);
   const canNext = startOfMonth(cursor) < startOfMonth(max);
-  const cursorMonthDisabled = DISABLED_MONTHS.has(cursor.getMonth());
+  const cursorMonthIndex = cursor.getMonth();
+  const cursorMonthDisabled = disabledMonthsSet.has(cursorMonthIndex);
+  const cursorMonthHasOverride = useMemo(() => {
+    if (!Array.isArray(allowedDates) || allowedDates.length === 0) return false;
+    const year = cursor.getFullYear();
+    return allowedDates.some((ds) => {
+      try {
+        const dt = new Date(`${ds}T00:00:00`);
+        if (Number.isNaN(dt.getTime())) return false;
+        return dt.getFullYear() === year && dt.getMonth() === cursorMonthIndex;
+      } catch {
+        return false;
+      }
+    });
+  }, [allowedDates, cursor, cursorMonthIndex]);
 
   return (
     <div className="relative border border-white/10 rounded-lg overflow-hidden">
@@ -142,7 +180,9 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
         </div>
         {cursorMonthDisabled && (
           <div className="px-4 py-2 text-center text-xs text-amber-200 bg-amber-500/10 border-t border-amber-500/20">
-            Οι κρατήσεις για τον Δεκέμβριο είναι προσωρινά απενεργοποιημένες.
+            {cursorMonthHasOverride
+              ? "Ο μήνας είναι κλειστός εκτός από συγκεκριμένες ημέρες."
+              : "Οι κρατήσεις για αυτόν τον μήνα είναι προσωρινά απενεργοποιημένες."}
           </div>
         )}
 
@@ -163,13 +203,18 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
             const inDisplay = inMonth;
             const isSel = selected && toYMD(selected) === ds;
             // Allow selecting days within current month only
+            const manualOpen = allowedDatesSet.has(ds);
+            const lockedBySettings = blockedDatesSet.has(ds);
+            const monthClosed = disabledMonthsSet.has(d.getMonth());
+            const weekdayClosed = closedWeekdays.includes(d.getDay());
+            const derivedClosed = lockedBySettings || ((weekdayClosed || monthClosed) && !manualOpen);
             const disabled = isDisabled(d) || !inDisplay;
             const count = highlights[ds] ?? null;
             const values = Object.values(highlights).filter((v) => typeof v === "number" && v > 0);
             const max = values.length ? Math.max(...values) : 0;
             let width = 0;
             let barCls = "";
-            const isClosedDay = closedWeekdays.includes(d.getDay());
+            const isClosedDay = derivedClosed;
             const isFutureOrToday = ds >= toYMD(today);
             if (!isFutureOrToday || isClosedDay) {
               width = 0; // no bars for past days or closed (Sun/Mon)
@@ -206,11 +251,7 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
                 onClick={() => onChange && onChange(ds)}
                 className={`group relative h-12 sm:h-14 md:h-16 text-sm flex flex-col items-center justify-center ${
                   inDisplay ? "" : "opacity-40"
-                } ${
-                  isSel
-                    ? "bg-transparent text-white"
-                    : "bg-transparent text-white"
-                }`}
+                } ${lockedBySettings ? "bg-red-900/40 text-red-100" : "bg-transparent text-white"}`}
               >
                 <span className={`${isSel ? 'font-extrabold text-white text-base sm:text-lg tracking-wide' : 'font-semibold text-white/90'}`}>
                   {d.getDate()}
@@ -228,7 +269,7 @@ export default function Calendar({ value, onChange, minDate, maxDate, closedWeek
                   </span>
                 )}
                 {(
-                  // Show bars only for today/future and not on closed days, and within displayed range
+                  // Show bars only for today/future when not closed and within the grid
                   inDisplay && (ds >= toYMD(today)) && !isClosedDay && (count !== null)
                 ) && (
                   <span

@@ -3,6 +3,7 @@ import BookingSSRProvider from "../components/BookingSSRProvider";
 import AuthProvider from "../components/AuthProvider";
 import AuthModal from "../components/AuthModal";
 import ProfilePanel from "../components/ProfilePanel";
+import BarberSettingsModal from "../components/BarberSettingsModal";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,6 +50,7 @@ export default function RootLayout({ children }) {
           {children}
           <AuthModal />
           <ProfilePanel />
+          <BarberSettingsModal />
         </AuthProvider>
       </body>
     </html>

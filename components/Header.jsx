@@ -1,10 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useAuth } from "./AuthProvider";
 
 export default function Header() {
-  const { user, openAuthModal, openProfile, profileOpen } = useAuth();
+  const { user, openAuthModal, openProfile, openSettings } = useAuth();
+
+  const canManageSettings = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || "customer").toLowerCase();
+    return role === "barber" || role === "admin";
+  }, [user]);
 
   const onProfileClick = useCallback(() => {
     if (user) openProfile();
@@ -47,7 +53,29 @@ export default function Header() {
           ))}
         </Link>
 
-        <div className="flex justify-end flex-1 sm:flex-none sm:relative">
+        <div className="flex justify-end flex-1 sm:flex-none sm:relative gap-2">
+          {canManageSettings && (
+            <button
+              onClick={openSettings}
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-white/15 bg-white/5 text-xs sm:text-sm font-semibold text-white flex items-center justify-center hover:bg-white/10 transition"
+              aria-label="Ρυθμίσεις"
+              type="button"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4 sm:h-5 sm:w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.07a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={onProfileClick}
             className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-white/15 bg-white/5 text-xs sm:text-sm font-semibold text-white flex items-center justify-center hover:bg-white/10 transition"

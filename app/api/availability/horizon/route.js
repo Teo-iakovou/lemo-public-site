@@ -1,6 +1,7 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
+import { fetchPublicSettingsServer } from "../../../../lib/publicSettingsServer";
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 // Always compute fresh; disable framework-level caching for this route
 export const dynamic = 'force-dynamic';
 
@@ -94,14 +95,46 @@ export async function GET(request) {
       if (res.ok) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
-        if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: payload });
-        return Response.json(payload, { status: 200, headers: cacheHeaders });
+        const settings = await fetchPublicSettingsServer();
+        const adjusted = applyManualOverlay(payload, startDate, endDate, settings);
+        if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: adjusted });
+        return Response.json(adjusted, { status: 200, headers: cacheHeaders });
       }
     } catch {}
   }
 
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
-  if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: empty });
-  return Response.json(empty, { status: 200, headers: cacheHeaders });
+  const settings = await fetchPublicSettingsServer();
+  const adjustedEmpty = applyManualOverlay(empty, startDate, endDate, settings);
+  if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: adjustedEmpty });
+  return Response.json(adjustedEmpty, { status: 200, headers: cacheHeaders });
+}
+
+function applyManualOverlay(payload, startDate, endDate, settings) {
+  const counts = { ...(payload.counts || {}) };
+  const slots = payload.slots ? { ...(payload.slots || {}) } : undefined;
+  const blockedDatesSet = new Set(settings.blockedDates || []);
+  const closedMonthsSet = new Set(settings.closedMonths || []);
+  const manualOpenDatesSet = new Set();
+  (settings.allowedDates || []).forEach((ds) => manualOpenDatesSet.add(ds));
+  Object.keys(settings.specialDayHours || {}).forEach((ds) => manualOpenDatesSet.add(ds));
+  Object.keys(settings.extraDaySlots || {}).forEach((ds) => manualOpenDatesSet.add(ds));
+
+  const iter = new Date(startDate.getTime());
+  while (iter <= endDate) {
+    const ds = toYMD(iter);
+    const monthClosed = closedMonthsSet.has(iter.getMonth());
+    const manualOpen = manualOpenDatesSet.has(ds);
+    const manualClosed = blockedDatesSet.has(ds) || (monthClosed && !manualOpen);
+    if (manualClosed) {
+      counts[ds] = 0;
+      if (slots) slots[ds] = [];
+    }
+    iter.setDate(iter.getDate() + 1);
+  }
+
+  const next = { ...payload, counts };
+  if (slots) next.slots = slots;
+  return next;
 }

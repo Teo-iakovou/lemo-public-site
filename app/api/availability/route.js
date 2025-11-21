@@ -1,6 +1,7 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
+import { fetchPublicSettingsServer } from "../../../lib/publicSettingsServer";
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 // Always compute fresh; disable framework-level caching for this route
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,7 @@ const CACHE = new Map();
 const TTL_MS = 5000; // 5s tiny TTL for snappier UX while keeping freshness
 
 const CY_TIMEZONE = "Europe/Athens";
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function toYMD(d) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -41,16 +43,16 @@ function zonedMinutes(date) {
   return hour * 60 + minute;
 }
 
-function businessWindow(date) {
+function businessWindow(date, forceOpen = false) {
   // Closed Sun (0) and Mon (1)
   const dow = date.getDay();
-  if (dow === 0 || dow === 1) return null;
+  if (!forceOpen && (dow === 0 || dow === 1)) return null;
   // Open 09:00 – 19:40 for all trading days so the final 19:00 slot is available
   return { open: 9 * 60, close: 19 * 60 + 40 };
 }
 
-function slotify({ date, duration = 40, step = 40 }) {
-  const win = businessWindow(date);
+function slotify({ date, duration = 40, step = 40, forceOpen = false }) {
+  const win = businessWindow(date, forceOpen);
   if (!win) return [];
   const slots = [];
   for (let t = win.open; t + duration <= win.close; t += step) {
@@ -66,6 +68,33 @@ function overlaps(aStart, aDur, bStart, bDur) {
   const aEnd = aStart + aDur;
   const bEnd = bStart + bDur;
   return aStart < bEnd && bStart < aEnd;
+}
+
+function hhmmToMinutes(value) {
+  if (typeof value !== "string") return null;
+  const match = TIME_RE.exec(value.trim());
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function minutesToHHMM(totalMinutes) {
+  const clamped = Math.max(0, Math.min(totalMinutes, 23 * 60 + 40));
+  const h = String(Math.floor(clamped / 60)).padStart(2, "0");
+  const m = String(clamped % 60).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function listToSlots(list) {
+  if (!Array.isArray(list) || !list.length) return [];
+  const map = new Map();
+  list.forEach((label) => {
+    const minutes = hhmmToMinutes(label);
+    if (minutes == null) return;
+    if (!map.has(minutes)) {
+      map.set(minutes, { start: minutes, label: minutesToHHMM(minutes) });
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => a.start - b.start);
 }
 
 export async function GET(request) {
@@ -94,9 +123,51 @@ export async function GET(request) {
   const duration = 40; // minutes per haircut
   const step = 40; // grid step in minutes (appointments every 40')
 
+  const settings = await fetchPublicSettingsServer();
+  const blockedDatesSet = new Set(settings.blockedDates || []);
+  const closedMonthsSet = new Set(settings.closedMonths || []);
+  const allowedDatesSet = new Set(settings.allowedDates || []);
+  const whitelistDatesSet = new Set(Object.keys(settings.specialDayHours || {}));
+  const extraDatesSet = new Set(Object.keys(settings.extraDaySlots || {}));
+  const manualOpenDatesSet = new Set();
+  allowedDatesSet.forEach((ds) => manualOpenDatesSet.add(ds));
+  whitelistDatesSet.forEach((ds) => manualOpenDatesSet.add(ds));
+  extraDatesSet.forEach((ds) => manualOpenDatesSet.add(ds));
+
   const day = parseLocalDate(date);
-  const win = businessWindow(day);
-  if (!win) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: cacheHeaders });
+  const monthClosed = closedMonthsSet.has(day.getMonth());
+  const manualOpen = manualOpenDatesSet.has(date);
+  const manualClosed = blockedDatesSet.has(date) || (monthClosed && !manualOpen);
+  if (debugMode) {
+    dbg.manual = { open: manualOpen, closed: manualClosed, monthClosed };
+  }
+  if (manualClosed) {
+    return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'manual-closed' } } : {}) }, { status: 200, headers: cacheHeaders });
+  }
+
+  const whitelistTimes = Array.isArray(settings.specialDayHours?.[date]) ? settings.specialDayHours[date] : [];
+  const extraTimes = Array.isArray(settings.extraDaySlots?.[date]) ? settings.extraDaySlots[date] : [];
+
+  const win = businessWindow(day, manualOpen);
+  if (!win && !manualOpen) {
+    return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: cacheHeaders });
+  }
+
+  let candidates = slotify({ date: day, duration, step, forceOpen: manualOpen });
+  if (whitelistTimes.length) {
+    candidates = listToSlots(whitelistTimes);
+  } else if (extraTimes.length) {
+    const extras = listToSlots(extraTimes);
+    if (extras.length) {
+      const existing = new Set(candidates.map((slot) => slot.start));
+      extras.forEach((slot) => {
+        if (!existing.has(slot.start)) {
+          candidates.push(slot);
+        }
+      });
+      candidates.sort((a, b) => a.start - b.start);
+    }
+  }
 
   // Do not allow booking in the past (e.g., yesterday)
   const today = new Date();
@@ -172,7 +243,6 @@ export async function GET(request) {
   }
 
   // Generate candidate slots and remove overlaps
-  const candidates = slotify({ date: day, duration, step });
   let removedByOverlap = [];
   let free = [];
   for (const c of candidates) {
@@ -196,7 +266,7 @@ export async function GET(request) {
     }
   }
   if (debugMode) {
-    dbg.window = businessWindow(day);
+    dbg.window = businessWindow(day, manualOpen);
     dbg.candidates = candidates.map((c) => c.label);
     dbg.removedByOverlap = removedByOverlap;
     dbg.freeInitial = free.map((c) => c.label);

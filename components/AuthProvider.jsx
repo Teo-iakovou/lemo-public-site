@@ -39,7 +39,15 @@ const disabledAuthValue = Object.freeze({
   openProfile: noop,
   closeProfile: noop,
   refreshUser: noop,
+  settingsOpen: false,
+  openSettings: noop,
+  closeSettings: noop,
 });
+
+function withDefaultRole(user) {
+  if (!user) return null;
+  return { role: user.role || "customer", ...user };
+}
 
 export default function AuthProvider({ children }) {
   if (AUTH_DISABLED) {
@@ -55,6 +63,7 @@ export default function AuthProvider({ children }) {
     error: "",
   });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const pendingCallbackRef = useRef(null);
 
   const fetchCurrentUser = useCallback(async () => {
@@ -65,7 +74,7 @@ export default function AuthProvider({ children }) {
         return;
       }
       const data = await res.json();
-      setUser(data.user || null);
+      setUser(withDefaultRole(data.user));
     } catch {
       setUser(null);
     } finally {
@@ -118,7 +127,7 @@ export default function AuthProvider({ children }) {
       if (!res.ok) {
         throw new Error(data?.error || data?.message || "Αποτυχία σύνδεσης");
       }
-      setUser(data.user || null);
+      setUser(withDefaultRole(data.user));
       setModalState({ open: false, mode: "login", loading: false, error: "" });
       if (pendingCallbackRef.current) {
         pendingCallbackRef.current(data.user || null);
@@ -189,6 +198,7 @@ export default function AuthProvider({ children }) {
     } catch {}
     setUser(null);
     setProfileOpen(false);
+    setSettingsOpen(false);
   }, []);
 
   const requireAuth = useCallback(
@@ -213,6 +223,31 @@ export default function AuthProvider({ children }) {
 
   const closeProfile = useCallback(() => setProfileOpen(false), []);
 
+  const openSettings = useCallback(() => {
+    const allow = (u) => {
+      const role = (u?.role || "customer").toLowerCase();
+      if (role === "barber" || role === "admin") {
+        setSettingsOpen(true);
+      }
+    };
+    const currentRole = (user?.role || "customer").toLowerCase();
+    if (!user) {
+      openAuthModal("login", allow);
+      return;
+    }
+    if (currentRole !== "barber" && currentRole !== "admin") return;
+    setSettingsOpen(true);
+  }, [user, openAuthModal]);
+
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
+  useEffect(() => {
+    const role = (user?.role || "customer").toLowerCase();
+    if (role !== "barber" && role !== "admin") {
+      setSettingsOpen(false);
+    }
+  }, [user]);
+
   const value = useMemo(
     () => ({
       user,
@@ -230,6 +265,9 @@ export default function AuthProvider({ children }) {
       openProfile,
       closeProfile,
       refreshUser: fetchCurrentUser,
+      settingsOpen,
+      openSettings,
+      closeSettings,
     }),
     [
       user,
@@ -247,6 +285,9 @@ export default function AuthProvider({ children }) {
       openProfile,
       closeProfile,
       fetchCurrentUser,
+      settingsOpen,
+      openSettings,
+      closeSettings,
       setAuthMode,
     ]
   );
