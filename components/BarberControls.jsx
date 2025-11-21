@@ -751,6 +751,30 @@ export default function BarberControls() {
                 />
                 {extraSuggestionsOpen && (
                   <div className="rounded-xl border border-white/15 bg-black/70 px-3 py-3 text-xs text-white/70 space-y-3">
+                    {baseSlotSuggestions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-white/80 text-[11px]">Ωράριο ημέρας</p>
+                        <div className="flex flex-wrap gap-2">
+                          {baseSlotSuggestions.map((time) => {
+                            const isActive = extraDraftValues.includes(time);
+                            return (
+                              <button
+                                key={`base-${time}`}
+                                type="button"
+                                onClick={() => toggleTimeValue("extra", time)}
+                                className={`rounded-full px-3 py-1 border ${
+                                  isActive
+                                    ? "border-emerald-300 bg-emerald-500/20 text-white"
+                                    : "border-white/25 hover:border-white/50"
+                                }`}
+                              >
+                                {time}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {extraSlotSuggestions.length > 0 && (
                       <div className="space-y-2">
                         <p className="font-semibold text-white/80 text-[11px]">Εκτός ωραρίου</p>
@@ -765,7 +789,7 @@ export default function BarberControls() {
                                 className={`rounded-full px-3 py-1 border ${
                                   isActive
                                     ? "border-emerald-300 bg-emerald-500/20 text-white"
-                                    : "border-white/25 hover:border-white/50"
+                                    : "border-white/25 hover-border-white/50"
                                 }`}
                               >
                                 {time}
