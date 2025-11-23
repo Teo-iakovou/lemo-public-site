@@ -149,6 +149,7 @@ export async function GET(request) {
   const extraTimes = Array.isArray(settings.extraDaySlots?.[date]) ? settings.extraDaySlots[date] : [];
 
   const win = businessWindow(day, manualOpen);
+  const baseWin = businessWindow(day, false);
   if (!win && !manualOpen) {
     return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: cacheHeaders });
   }
@@ -278,7 +279,15 @@ export async function GET(request) {
     }
   }
 
-  const out = free.map((s) => s.label);
+  let out = free.map((s) => s.label);
+  if (!whitelistTimes.length && baseWin) {
+    out = out.filter((label) => {
+      const minutes = hhmmToMinutes(label);
+      if (minutes == null) return false;
+      const end = minutes + duration;
+      return minutes >= baseWin.open && end <= baseWin.close;
+    });
+  }
   // Store in cache (guarded by TTL)
   if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), slots: out });
   return Response.json({ slots: out, ...(debugMode ? { debug: { ...dbg, cache: 'miss' } } : {}) }, { status: 200, headers: cacheHeaders });
