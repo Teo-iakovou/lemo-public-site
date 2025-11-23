@@ -235,10 +235,13 @@ export default function Calendar({
             const max = values.length ? Math.max(...values) : 0;
             let width = 0;
             let barCls = "";
-            const isClosedDay = derivedClosed;
+            const isClosedDay = derivedClosed && (ds >= toYMD(today));
             const isFutureOrToday = ds >= toYMD(today);
-            if (!isFutureOrToday || isClosedDay) {
-              width = 0; // no bars for past days or closed (Sun/Mon)
+            if (!isFutureOrToday) {
+              width = 0; // no bars for past days
+            } else if (isClosedDay) {
+              width = 100;
+              barCls = "bg-red-500";
             } else if (count === null) {
               width = 0; // unknown -> no bar
             } else if (count <= 0) {
@@ -272,7 +275,7 @@ export default function Calendar({
                 onClick={() => onChange && onChange(ds)}
                 className={`group relative h-12 sm:h-14 md:h-16 text-sm flex flex-col items-center justify-center ${
                   inDisplay ? "" : "opacity-40"
-                } ${lockedBySettings ? "bg-red-900/40 text-red-100" : "bg-transparent text-white"}`}
+                } ${lockedBySettings ? "text-red-200" : "text-white"}`}
               >
                 <span className={`${isSel ? 'font-extrabold text-white text-base sm:text-lg tracking-wide' : 'font-semibold text-white/90'}`}>
                   {d.getDate()}
@@ -290,8 +293,7 @@ export default function Calendar({
                   </span>
                 )}
                 {(
-                  // Show bars only for today/future when not closed and within the grid
-                  inDisplay && (ds >= toYMD(today)) && !isClosedDay && (count !== null)
+                  inDisplay && isFutureOrToday && (isClosedDay || count !== null)
                 ) && (
                   <span
                     className={`absolute bottom-1 h-1 rounded ${barCls}`}
@@ -302,6 +304,20 @@ export default function Calendar({
             );
             })
           )}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-white/70">
+        <div className="flex items-center gap-2">
+          <span className="h-1 w-8 rounded bg-teal-400 inline-block" />
+          <span>Διαθέσιμο</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-1 w-8 rounded bg-purple-500 inline-block" />
+          <span>Πλήρες</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-1 w-8 rounded bg-red-500 inline-block" />
+          <span>Κλειστό</span>
         </div>
       </div>
       </div>
