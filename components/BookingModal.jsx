@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import DobPicker from "./DobPicker";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
+import WaitlistModal from "./WaitlistModal";
 import {
   getServices,
   getAvailability,
@@ -44,6 +45,8 @@ export default function BookingModal({ open, onClose }) {
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
   const [animateForm, setAnimateForm] = useState(false);
+  const [waitlistToast, setWaitlistToast] = useState("");
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const bodyLockRef = useRef(null);
 
   // UI-only per-barber prices (EUR)
@@ -74,6 +77,8 @@ export default function BookingModal({ open, onClose }) {
     setPhone("");
     setEmail("");
     setDob("");
+    setWaitlistToast("");
+    setWaitlistOpen(false);
   }
 
   // Dynamic step title shown in the modal header to save vertical space
@@ -146,6 +151,16 @@ export default function BookingModal({ open, onClose }) {
     (ds) => manualOpenDatesSet.has(ds),
     [manualOpenDatesSet]
   );
+
+  useEffect(() => {
+    if (!waitlistToast) return;
+    const timer = setTimeout(() => setWaitlistToast(""), 3500);
+    return () => clearTimeout(timer);
+  }, [waitlistToast]);
+
+  const handleWaitlistSuccess = useCallback(() => {
+    setWaitlistToast("✅ Προστέθηκες στη λίστα αναμονής!");
+  }, []);
 
   function toGreekBarber(id) {
     if (!id) return "";
@@ -644,12 +659,12 @@ export default function BookingModal({ open, onClose }) {
             >
               <Calendar
                 value={date}
-              onChange={(ds) => {
-                setDate(ds);
-                setTime("");
-                // If we already have preloaded slots (even empty array), suppress spinner
-                if (Object.prototype.hasOwnProperty.call(slotsByDate, ds)) setLoadingSlots(false);
-              }}
+                onChange={(ds) => {
+                  setDate(ds);
+                  setTime("");
+                  // If we already have preloaded slots (even empty array), suppress spinner
+                  if (Object.prototype.hasOwnProperty.call(slotsByDate, ds)) setLoadingSlots(false);
+                }}
                 minDate={minDate}
                 maxDate={maxDate}
                 closedWeekdays={[0, 1]}
@@ -770,6 +785,28 @@ export default function BookingModal({ open, onClose }) {
                     )}
                   </div>
                 }
+                <div className="mt-4 rounded-2xl border border-white/15 bg-white/5 p-4 text-white">
+                  <p className="text-base font-semibold">
+                    Δεν βρίσκεις την ώρα που θέλεις;
+                  </p>
+                  <p className="mt-1 text-sm text-white/70">
+                    Θα σε ειδοποιήσουμε αν ελευθερωθεί ραντεβού για{" "}
+                    {date
+                      ? new Date(`${date}T00:00:00`).toLocaleDateString("el-GR", {
+                          day: "numeric",
+                          month: "long",
+                        })
+                      : "την ημερομηνία που επέλεξες"}.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={!date}
+                    onClick={() => setWaitlistOpen(true)}
+                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                  >
+                    Συμμετοχή στη λίστα αναμονής →
+                  </button>
+                </div>
                 {/* Bottom controls under time slots: Prev (left) and Next (right) */}
                 <div className="mt-4 flex items-center justify-between">
                   {/* Prev: back to barber selection */}
@@ -893,6 +930,21 @@ export default function BookingModal({ open, onClose }) {
           </div>
         </div>
       </div>
+      <WaitlistModal
+        open={waitlistOpen}
+        onClose={() => setWaitlistOpen(false)}
+        date={date}
+        serviceId={serviceId}
+        barberId={barberChoice || toBarberId(barber)}
+        onSuccess={() => {
+          handleWaitlistSuccess();
+        }}
+      />
+      {waitlistToast && (
+        <div className="fixed bottom-6 left-1/2 z-[10000] -translate-x-1/2 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white shadow-lg">
+          {waitlistToast}
+        </div>
+      )}
     </div>
   );
 }

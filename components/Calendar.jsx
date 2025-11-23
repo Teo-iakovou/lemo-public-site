@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import WaitlistModal from "./WaitlistModal";
 
 function toYMD(d) {
   // Local date string: YYYY-MM-DD (avoid UTC shift from toISOString)
@@ -38,6 +39,7 @@ export default function Calendar({
   disabledMonths = [11],
   blockedDates = [],
   allowedDates = [],
+  waitlistOptions,
 }) {
   const today = useMemo(() => {
     const t = new Date();
@@ -118,8 +120,27 @@ export default function Calendar({
     });
   }, [allowedDates, cursor, cursorMonthIndex]);
 
+  const waitlistEnabled = Boolean(waitlistOptions);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const waitlistDate = value || "";
+  const readableWaitlistDate = useMemo(() => {
+    if (!waitlistDate) return "";
+    try {
+      const [y, m, d] = waitlistDate.split("-").map(Number);
+      const dt = new Date(y, m - 1, d);
+      return new Intl.DateTimeFormat("el-GR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(dt);
+    } catch {
+      return waitlistDate;
+    }
+  }, [waitlistDate]);
+
   return (
-    <div className="relative border border-white/10 rounded-lg overflow-hidden">
+    <div>
+      <div className="relative border border-white/10 rounded-lg overflow-hidden">
       {/* Subtle logo background */}
       {/* Mobile photo position (lower in frame) */}
       <div
@@ -283,6 +304,39 @@ export default function Calendar({
           )}
         </div>
       </div>
+      </div>
+      {waitlistEnabled && (
+        <>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
+            <p className="text-base font-semibold">
+              Δεν βρίσκεις την ώρα που θέλεις;
+            </p>
+            <p className="mt-1 text-sm text-white/70">
+              {waitlistDate
+                ? `Ζήτα να ειδοποιηθείς εάν ανοίξει κάποιο ραντεβού για ${readableWaitlistDate}.`
+                : "Διάλεξε ημερομηνία και δήλωσε τη διαθεσιμότητα που σε ενδιαφέρει."}
+            </p>
+            <button
+              type="button"
+              onClick={() => setWaitlistOpen(true)}
+              disabled={!waitlistDate}
+              className="mt-3 inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+            >
+              Συμμετοχή στη λίστα αναμονής →
+            </button>
+          </div>
+          <WaitlistModal
+            open={waitlistOpen}
+            onClose={() => setWaitlistOpen(false)}
+            date={waitlistDate}
+            serviceId={waitlistOptions?.serviceId}
+            barberId={waitlistOptions?.barberId}
+            onSuccess={() => {
+              waitlistOptions?.onSuccess?.();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

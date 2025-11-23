@@ -14,6 +14,7 @@ function BookDateInner() {
   const [date, setDate] = useState("");
   const [highlights, setHighlights] = useState({});
   const [loadingHints, setLoadingHints] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
   const HORIZON_DAYS = 365; // allow picking far into the future on this page
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -69,6 +70,16 @@ function BookDateInner() {
     return `/book/time?${p.toString()}`;
   }, [serviceId, date, barberId]);
 
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(""), 4000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  const handleWaitlistSuccess = () => {
+    setToastMessage("✅ Εγγράφηκες στη λίστα αναμονής!");
+  };
+
   return (
     <main className="max-w-3xl mx-auto p-6">
       <BookingProgress />
@@ -84,6 +95,11 @@ function BookDateInner() {
             maxDate={maxDate}
             closedWeekdays={[0, 1]} // Sun, Mon closed
             highlights={highlights}
+            waitlistOptions={{
+              serviceId,
+              barberId,
+              onSuccess: handleWaitlistSuccess,
+            }}
           />
           {loadingHints && <p className="text-xs text-neutral-400 mt-2">Checking availability…</p>}
         </div>
@@ -99,6 +115,15 @@ function BookDateInner() {
           Continue
         </Link>
       </div>
+      {toastMessage && (
+        <div
+          className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full bg-black px-6 py-3 text-sm font-medium text-white shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }
