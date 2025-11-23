@@ -6,6 +6,7 @@ import { getPublicSettings, updatePublicSettings } from "../lib/api";
 import {
   DEFAULT_PUBLIC_SETTINGS,
   normalizePublicSettings,
+  VISIBLE_MONTH_LIMITS,
 } from "../lib/publicSettings";
 
 const MONTH_LABELS = [
@@ -28,6 +29,10 @@ const DEFAULT_DAY_CLOSE_MINUTES = 19 * 60 + 40;
 const SATURDAY_CLOSE_MINUTES = 17 * 60 + 40;
 const SLOT_STEP_MINUTES = 40;
 const EXTRA_WINDOW_MINUTES = 120;
+const VISIBLE_MONTH_CHOICES = Array.from(
+  { length: VISIBLE_MONTH_LIMITS.max - VISIBLE_MONTH_LIMITS.min + 1 },
+  (_, idx) => VISIBLE_MONTH_LIMITS.min + idx
+);
 
 function formatLongDate(value) {
   try {
@@ -442,6 +447,8 @@ export default function BarberControls() {
 
   const hasPendingChanges = useMemo(() => {
     return (
+      (settings.visibleMonthCount || DEFAULT_PUBLIC_SETTINGS.visibleMonthCount) !==
+        (initialSettings.visibleMonthCount || DEFAULT_PUBLIC_SETTINGS.visibleMonthCount) ||
       JSON.stringify(settings.closedMonths) !==
         JSON.stringify(initialSettings.closedMonths) ||
       JSON.stringify(settings.allowedDates) !==
@@ -484,7 +491,35 @@ export default function BarberControls() {
     <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 space-y-4">
       <div>
         <h3 className="text-lg font-semibold">Πίνακας Διαθεσιμότητας</h3>
-      
+        <p className="mt-1 text-sm text-white/70">
+          Επιλέξτε πόσους μήνες μπροστά βλέπουν οι πελάτες. Ο τρέχων μήνας μετράει ως ο πρώτος.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {VISIBLE_MONTH_CHOICES.map((count) => {
+            const active =
+              (settings.visibleMonthCount ||
+                DEFAULT_PUBLIC_SETTINGS.visibleMonthCount) === count;
+            return (
+              <button
+                key={count}
+                type="button"
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    visibleMonthCount: count,
+                  }))
+                }
+                className={`rounded-full px-3 py-1 text-sm border transition ${
+                  active
+                    ? "border-emerald-300 bg-emerald-500/20 text-white"
+                    : "border-white/15 text-white/70 hover:border-white/40"
+                }`}
+              >
+                {count === 1 ? "1 μήνα" : `${count} μήνες`}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-white/70">

@@ -14,7 +14,7 @@ import {
   createAppointment,
   getPublicSettings,
 } from "../lib/api";
-import { DEFAULT_PUBLIC_SETTINGS } from "../lib/publicSettings";
+import { DEFAULT_PUBLIC_SETTINGS, VISIBLE_MONTH_LIMITS } from "../lib/publicSettings";
 
 export default function BookingModal({ open, onClose }) {
   const router = useRouter();
@@ -103,9 +103,24 @@ export default function BookingModal({ open, onClose }) {
   }, []);
   // Use local Y-M-D to avoid UTC shifting yesterday into "today"
   const minDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  // Allow navigation through the end of next month
-  const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-  const maxDate = `${endOfNextMonth.getFullYear()}-${String(endOfNextMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfNextMonth.getDate()).padStart(2, '0')}`;
+  const visibleMonthCount = useMemo(() => {
+    const raw = Number(publicSettings.visibleMonthCount);
+    if (!Number.isFinite(raw)) return DEFAULT_PUBLIC_SETTINGS.visibleMonthCount;
+    const clamped = Math.min(
+      VISIBLE_MONTH_LIMITS.max,
+      Math.max(VISIBLE_MONTH_LIMITS.min, Math.floor(raw))
+    );
+    return clamped;
+  }, [publicSettings.visibleMonthCount]);
+  // Allow navigation through the configured number of months (current month counts as the first)
+  const endOfVisibleRange = new Date(
+    today.getFullYear(),
+    today.getMonth() + visibleMonthCount,
+    0
+  );
+  const maxDate = `${endOfVisibleRange.getFullYear()}-${String(
+    endOfVisibleRange.getMonth() + 1
+  ).padStart(2, "0")}-${String(endOfVisibleRange.getDate()).padStart(2, "0")}`;
   const closedMonthsSet = useMemo(
     () => new Set(Array.isArray(publicSettings.closedMonths) ? publicSettings.closedMonths : []),
     [publicSettings.closedMonths]

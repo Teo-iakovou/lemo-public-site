@@ -10,6 +10,7 @@ const emptySettings = {
   allowedDates: [],
   specialDayHours: {},
   extraDaySlots: {},
+  visibleMonthCount: 2,
 };
 
 const fallbackStore = (() => {
