@@ -31,6 +31,7 @@ export default function WaitlistModal({
   serviceId,
   barberId,
   onSuccess,
+  onError,
 }) {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -38,7 +39,7 @@ export default function WaitlistModal({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState("");
 
@@ -64,7 +65,7 @@ export default function WaitlistModal({
       setPhoneNumber("");
       setPreferredTime("");
       setSuggestedSlots([]);
-      setShowSuggestions(true);
+      setShowSuggestions(false);
       setSlotsError("");
     }
   }, [open]);
@@ -128,6 +129,7 @@ export default function WaitlistModal({
       onClose?.();
     } catch (err) {
       setError(err?.message || "Αποτυχία αποστολής.");
+      onError?.(err);
     } finally {
       setSubmitting(false);
     }

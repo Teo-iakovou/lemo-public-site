@@ -939,6 +939,9 @@ export default function BookingModal({ open, onClose }) {
         onSuccess={() => {
           handleWaitlistSuccess();
         }}
+        onError={() => {
+          setWaitlistToast("❌ Η εγγραφή στη λίστα απέτυχε. Προσπαθήστε ξανά.");
+        }}
       />
       {waitlistToast && (
         <div className="fixed bottom-6 left-1/2 z-[10000] -translate-x-1/2 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white shadow-lg">

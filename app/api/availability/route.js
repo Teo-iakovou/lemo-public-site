@@ -156,17 +156,6 @@ export async function GET(request) {
   let candidates = slotify({ date: day, duration, step, forceOpen: manualOpen });
   if (whitelistTimes.length) {
     candidates = listToSlots(whitelistTimes);
-  } else if (extraTimes.length) {
-    const extras = listToSlots(extraTimes);
-    if (extras.length) {
-      const existing = new Set(candidates.map((slot) => slot.start));
-      extras.forEach((slot) => {
-        if (!existing.has(slot.start)) {
-          candidates.push(slot);
-        }
-      });
-      candidates.sort((a, b) => a.start - b.start);
-    }
   }
 
   // Do not allow booking in the past (e.g., yesterday)
