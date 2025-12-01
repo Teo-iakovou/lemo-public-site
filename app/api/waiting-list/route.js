@@ -6,13 +6,28 @@ export async function POST(request) {
     const {
       preferredDate,
       preferredTime,
+      preferredTimes,
       name,
       phoneNumber,
       serviceId,
       barberId,
     } = body;
+    const timesList = Array.isArray(preferredTimes)
+      ? preferredTimes
+          .map((value) =>
+            typeof value === "string" ? value.trim() : ""
+          )
+          .filter(Boolean)
+      : [];
+    const fallbackTime = typeof preferredTime === "string" ? preferredTime.trim() : "";
+    const normalizedTimes =
+      timesList.length > 0
+        ? timesList
+        : fallbackTime
+        ? [fallbackTime]
+        : [];
 
-    if (!preferredDate || !preferredTime || !name || !phoneNumber) {
+    if (!preferredDate || !normalizedTimes.length || !name || !phoneNumber) {
       return Response.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -32,7 +47,8 @@ export async function POST(request) {
 
     const payload = JSON.stringify({
       preferredDate,
-      preferredTime,
+      preferredTime: normalizedTimes[0],
+      preferredTimes: normalizedTimes,
       name,
       phoneNumber,
       serviceId,

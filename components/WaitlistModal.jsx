@@ -7,6 +7,11 @@ const SLOT_DURATION_MIN = 40;
 const SLOT_STEP_MIN = 40;
 const OPEN_MINUTES = 9 * 60;
 const CLOSE_MINUTES = 19 * 60 + 40; // last slot starts 19:00
+const BARBER_OPTIONS = [
+  { value: "", label: "Όποιος είναι διαθέσιμος" },
+  { value: "lemo", label: "ΛΕΜΟ" },
+  { value: "forou", label: "ΦΟΡΟΥ" },
+];
 
 function minutesToLabel(total) {
   const h = String(Math.floor(total / 60)).padStart(2, "0");
@@ -35,13 +40,34 @@ export default function WaitlistModal({
 }) {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
+  const [preferredTimes, setPreferredTimes] = useState([]);
+  const [selectedBarber, setSelectedBarber] = useState(barberId || "");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState("");
+  const sortedPreferredTimes = useMemo(
+    () => [...preferredTimes].sort(),
+    [preferredTimes]
+  );
+
+  const togglePreferredTime = (slot) => {
+    if (!slot) return;
+    setError("");
+    setPreferredTimes((prev) => {
+      const exists = prev.includes(slot);
+      if (exists) {
+        return prev.filter((value) => value !== slot);
+      }
+      return [...prev, slot].sort();
+    });
+  };
+
+  const removePreferredTime = (value) => {
+    setPreferredTimes((prev) => prev.filter((slot) => slot !== value));
+  };
 
   useEffect(() => {
     function handleKey(e) {
@@ -63,12 +89,13 @@ export default function WaitlistModal({
       setError("");
       setName("");
       setPhoneNumber("");
-      setPreferredTime("");
+      setPreferredTimes([]);
+      setSelectedBarber(barberId || "");
       setSuggestedSlots([]);
       setShowSuggestions(false);
       setSlotsError("");
     }
-  }, [open]);
+  }, [open, barberId]);
 
   useEffect(() => {
     if (!open || !date) return;
@@ -106,7 +133,7 @@ export default function WaitlistModal({
 
   async function handleSubmit(e) {
     e?.preventDefault?.();
-    if (!name.trim() || !phoneNumber.trim() || !preferredTime) {
+    if (!name.trim() || !phoneNumber.trim() || preferredTimes.length === 0) {
       setError("Συμπληρώστε όλα τα πεδία.");
       return;
     }
@@ -120,10 +147,10 @@ export default function WaitlistModal({
       await joinWaitingList({
         name: name.trim(),
         phoneNumber: phoneNumber.trim(),
-        preferredTime,
+        preferredTimes,
         preferredDate: date,
         serviceId,
-        barberId,
+        barberId: selectedBarber || barberId,
       });
       onSuccess?.();
       onClose?.();
@@ -163,11 +190,32 @@ export default function WaitlistModal({
           </button>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="flex items-center justify-between text-sm font-medium text-white/80">
-            <span className="text-[#c084fc]">Προτιμώμενη ώρα</span>
-            {preferredTime && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white/80 block">
+              Προτιμώμενος κουρέας
+            </label>
+            <div className="relative">
+              <select
+                className="w-full appearance-none rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-[#a855f7] focus:outline-none focus:ring-1 focus:ring-[#a855f7]"
+                value={selectedBarber || ""}
+                onChange={(e) => setSelectedBarber(e.target.value)}
+              >
+                {BARBER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/40">
+                ▾
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-sm font-medium text-white/80 pt-2">
+            <span className="text-[#c084fc]">Προτιμώμενες ώρες</span>
+            {sortedPreferredTimes.length > 0 && (
               <span className="text-xs text-white/60">
-                Επιλεγμένο: {preferredTime}
+                {sortedPreferredTimes.join(", ")}
               </span>
             )}
           </div>
@@ -193,9 +241,9 @@ export default function WaitlistModal({
                     <button
                       key={slot}
                       type="button"
-                      onClick={() => setPreferredTime(slot)}
+                      onClick={() => togglePreferredTime(slot)}
                       className={`px-3 py-1 rounded-md border text-sm transition-colors ${
-                        preferredTime === slot
+                        preferredTimes.includes(slot)
                           ? "border-[#a855f7] bg-gradient-to-r from-[#a855f7] to-[#7c3aed] text-white"
                           : "border-white/20 bg-transparent text-white hover:border-[#a855f7]/60"
                       }`}
@@ -205,6 +253,26 @@ export default function WaitlistModal({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+          {sortedPreferredTimes.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {sortedPreferredTimes.map((slot) => (
+                <span
+                  key={slot}
+                  className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80"
+                >
+                  {slot}
+                  <button
+                    type="button"
+                    onClick={() => removePreferredTime(slot)}
+                    className="text-white/50 hover:text-white"
+                    aria-label={`Αφαίρεση ${slot}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
           )}
           <input
