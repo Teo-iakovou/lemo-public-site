@@ -20,11 +20,13 @@ export default function PhoneInputIntl({ value, onChange, defaultCountry = "CY",
   const defaultIndex = Math.max(0, COUNTRIES.findIndex((c) => c.code === defaultCountry));
   const [dial, setDial] = useState(COUNTRIES[defaultIndex].dial); // e.g., "+357"
   const [local, setLocal] = useState(""); // local digits only
+  const lastNormalizedRef = useRef("");
 
   // Initialize from value
   useEffect(() => {
     if (value == null) return;
     const v = String(value).replace(/\s+/g, "");
+    if (v === lastNormalizedRef.current) return;
     const found = COUNTRIES.find((c) => v.startsWith(c.dial));
     if (found) {
       const nextDial = found.dial;
@@ -37,12 +39,19 @@ export default function PhoneInputIntl({ value, onChange, defaultCountry = "CY",
     } else {
       setLocal("");
     }
+    lastNormalizedRef.current = v;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   // Emit combined number on changes
   useEffect(() => {
-    onChange && onChange(`${dial}${digitsOnly(local)}`);
+    const combined = `${dial}${digitsOnly(local)}`;
+    if (combined === lastNormalizedRef.current) {
+      onChange && onChange(combined);
+      return;
+    }
+    lastNormalizedRef.current = combined;
+    onChange && onChange(combined);
   }, [dial, local, onChange]);
 
   function onDialChange(nextDial) {
