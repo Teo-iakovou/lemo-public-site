@@ -13,10 +13,52 @@ import {
   getHorizonAvailability,
   createAppointment,
   getPublicSettings,
+  rescheduleAppointment,
 } from "../lib/api";
 import { DEFAULT_PUBLIC_SETTINGS, VISIBLE_MONTH_LIMITS } from "../lib/publicSettings";
+import { useAuth } from "./AuthProvider";
 
-export default function BookingModal({ open, onClose }) {
+const ATHENS_TIME_ZONE = "Europe/Athens";
+
+function toAthensDateParts(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: ATHENS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const map = {};
+    parts.forEach((part) => {
+      if (part.type !== "literal") {
+        map[part.type] = part.value;
+      }
+    });
+    return {
+      date: `${map.year}-${map.month}-${map.day}`,
+      time: `${map.hour}:${map.minute}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function fromGreekBarberName(value = "") {
+  if (!value) return "";
+  const normalized = value.toString().trim().toUpperCase();
+  if (normalized.includes("ΛΕΜ")) return "Lemo";
+  if (normalized.includes("ΦΟΡ")) return "Forou";
+  return value;
+}
+
+export default function BookingModal({ open, onClose, editAppointment }) {
   const router = useRouter();
   const debugEnabled = (() => {
     if (typeof window === 'undefined') return false;
@@ -48,6 +90,10 @@ export default function BookingModal({ open, onClose }) {
   const [waitlistToast, setWaitlistToast] = useState("");
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const bodyLockRef = useRef(null);
+  const { user } = useAuth();
+  const [editContext, setEditContext] = useState(null);
+  const [editRequiresSelection, setEditRequiresSelection] = useState(false);
+  const editPrefilledRef = useRef(false);
 
   // UI-only per-barber prices (EUR)
   const PRICES = { lemo: 15, forou: 10 };
@@ -60,6 +106,8 @@ export default function BookingModal({ open, onClose }) {
   }
 
   function resetModalState() {
+    editPrefilledRef.current = false;
+    setEditRequiresSelection(false);
     setBarber("");
     setBarberChoice("");
     setDate("");
@@ -81,19 +129,32 @@ export default function BookingModal({ open, onClose }) {
     setWaitlistOpen(false);
   }
 
+  const editingActive = Boolean(editContext?.id);
+
   // Dynamic step title shown in the modal header to save vertical space
   const stepTitle = useMemo(() => {
     const base = (!barber)
-      ? 'Επιλέξτε κουρέα'
+      ? "Επιλέξτε κουρέα"
       : (!date)
-        ? 'Επιλέξτε ημερομηνία'
+        ? "Επιλέξτε ημερομηνία"
         : (!time)
-          ? 'Επιλέξτε ώρα'
-          : 'Τα στοιχεία σας';
-    if (!barber) return base;
+          ? "Επιλέξτε ώρα"
+          : "Τα στοιχεία σας";
+    const prefix = editingActive ? "Αλλαγή ραντεβού — " : "";
+    if (!barber) return `${prefix}${base}`;
     const price = PRICES[toBarberId(barber)];
-    return price ? `${base} — ${formatEuro(price)}` : base;
-  }, [barber, date, time]);
+    const full = price ? `${base} — ${formatEuro(price)}` : base;
+    return `${prefix}${full}`.trim();
+  }, [barber, date, time, editingActive]);
+  const confirmButtonLabel = editingActive
+    ? submitting
+      ? "Αποθήκευση..."
+      : editContext?.locked
+      ? "Αλλαγές επιτρέπονται έως 24 ώρες πριν"
+      : "Επιβεβαίωση αλλαγών"
+    : submitting
+    ? "Γίνεται κράτηση…"
+    : "Επιβεβαίωση και κράτηση";
 
   const HORIZON_DAYS = 14;
   const today = useMemo(() => {
@@ -257,6 +318,86 @@ export default function BookingModal({ open, onClose }) {
       resetModalState();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (user?.displayName) {
+      setName((prev) => prev || user.displayName);
+    }
+    if (user?.phoneNumber) {
+      setPhone((prev) => prev || user.phoneNumber);
+    }
+  }, [open, user]);
+
+  useEffect(() => {
+    if (!open) {
+      setEditContext(null);
+      setEditRequiresSelection(false);
+      editPrefilledRef.current = false;
+      return;
+    }
+    if (!editAppointment) {
+      setEditContext(null);
+      editPrefilledRef.current = false;
+      return;
+    }
+    const apptDateTime = editAppointment.appointmentDateTime || editAppointment.dateTime || "";
+    const parts = toAthensDateParts(apptDateTime);
+    const cutoffMs = 24 * 60 * 60 * 1000;
+    const isLocked =
+      typeof editAppointment.locked === "boolean"
+        ? editAppointment.locked
+        : (() => {
+            const timestamp = Date.parse(apptDateTime);
+            if (!Number.isFinite(timestamp)) return false;
+            return timestamp - Date.now() < cutoffMs;
+          })();
+    const nextContext = {
+      id: editAppointment.id || editAppointment._id || editAppointment.appointmentId,
+      barber: editAppointment.barber,
+      uiBarber: fromGreekBarberName(editAppointment.barber),
+      date: parts?.date || "",
+      time: parts?.time || "",
+      customerName: editAppointment.customerName || "",
+      originalDateTime: apptDateTime,
+      locked: isLocked,
+    };
+    setEditContext(nextContext);
+    if (nextContext.uiBarber) {
+      setBarberChoice(nextContext.uiBarber);
+    }
+    if (nextContext.customerName) {
+      setName(nextContext.customerName);
+    }
+    editPrefilledRef.current = false;
+    setEditRequiresSelection(true);
+  }, [open, editAppointment]);
+
+  useEffect(() => {
+    if (!open || !editContext || !barber) return;
+    if (editPrefilledRef.current) return;
+    if (editContext.uiBarber && editContext.uiBarber !== barber) return;
+    if (editContext.date) {
+      setDate(editContext.date);
+    }
+    if (!editRequiresSelection && editContext.time) {
+      setTime(editContext.time);
+      setLastTime(editContext.time);
+    }
+    editPrefilledRef.current = true;
+  }, [open, editContext, barber, editRequiresSelection]);
+
+  useEffect(() => {
+    if (!barber) {
+      editPrefilledRef.current = false;
+    }
+  }, [barber]);
+
+  useEffect(() => {
+    if (time && editRequiresSelection) {
+      setEditRequiresSelection(false);
+    }
+  }, [time, editRequiresSelection]);
 
   useEffect(() => {
     if (date && isDateManuallyClosed(date)) {
@@ -566,17 +707,31 @@ export default function BookingModal({ open, onClose }) {
     setError("");
     try {
       const dateTime = `${date}T${time}`;
-      const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
-      // email removed from public UI; do not include
-      if (dob) payload.dateOfBirth = dob; // pass through to backend
-      const result = await createAppointment(payload);
-      const id = result?.id || result?._id || "";
-      const p = new URLSearchParams();
-      if (id) p.set("id", id);
-      // Navigate first; do not close the modal before routing to avoid a brief flash of the home page
-      router.push(`/success?${p.toString()}`);
+      if (editingActive && editContext?.id) {
+        const payload = {
+          appointmentDateTime: dateTime,
+          dateTime,
+          barber: toGreekBarber(barber),
+          customerName: name,
+          phoneNumber: phone,
+        };
+        const result = await rescheduleAppointment(editContext.id, payload);
+        const updatedId = result?.appointment?._id || result?.id || editContext.id;
+        const params = new URLSearchParams();
+        if (updatedId) params.set("id", updatedId);
+        params.set("mode", "updated");
+        router.push(`/success?${params.toString()}`);
+      } else {
+        const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
+        if (dob) payload.dateOfBirth = dob;
+        const result = await createAppointment(payload);
+        const id = result?.id || result?._id || "";
+        const p = new URLSearchParams();
+        if (id) p.set("id", id);
+        router.push(`/success?${p.toString()}`);
+      }
     } catch (e) {
-      setError(e.message || "Failed to create appointment");
+      setError(e.message || "Failed to complete request");
     } finally {
       setSubmitting(false);
     }
@@ -933,13 +1088,18 @@ export default function BookingModal({ open, onClose }) {
                 </button>
                 <button
                   type="button"
-                  disabled={!serviceId || !date || !time || !name || !phone || submitting}
+                  disabled={!serviceId || !date || !time || !name || !phone || submitting || (editingActive && editContext?.locked)}
                   onClick={onConfirm}
                   className="ml-auto px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
                 >
-                  {submitting ? "Γίνεται κράτηση…" : "Επιβεβαίωση και κράτηση"}
+                  {confirmButtonLabel}
                 </button>
               </div>
+              {editingActive && editContext?.locked && (
+                <p className="text-xs text-red-400 mt-2">
+                  Δεν μπορείτε να αλλάξετε το ραντεβού λιγότερο από 24 ώρες πριν. Επικοινωνήστε τηλεφωνικά.
+                </p>
+              )}
             </form>
             )}
           </div>

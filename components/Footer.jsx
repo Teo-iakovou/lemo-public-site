@@ -21,11 +21,7 @@ export default function Footer() {
               <path d="M6.62 10.79a15.53 15.53 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.36 11.36 0 0 0 3.56.57 1 1 0 0 1 1 1v3.49a1 1 0 0 1-1 1A17.5 17.5 0 0 1 2.5 6a1 1 0 0 1 1-1H7a1 1 0 0 1 1 1 11.36 11.36 0 0 0 .57 3.56 1 1 0 0 1-.24 1.01l-1.7 1.22z"/>
             </svg>
           </a>
-          <a href="mailto:hello@lemo.barber" aria-label="Email" className="hover:opacity-80" title="Email">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 fill-current">
-              <path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm0 2v.01L12 13l8-5.99V7H4zm16 10V9.2l-7.44 5.57a1 1 0 0 1-1.12 0L4 9.2V17h16z"/>
-            </svg>
-          </a>
+      
         </div>
       </div>
     </footer>

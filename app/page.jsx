@@ -13,14 +13,29 @@ export default function Home() {
   // Client-only bits for modal open are safe in the app router
   const [open, setOpen] = useState(false);
   const [intro, setIntro] = useState(true);
+  const [editAppointment, setEditAppointment] = useState(null);
   const { requireAuth } = useAuth();
 
-  const openBooking = useCallback(() => {
-    requireAuth(() => setOpen(true));
-  }, [requireAuth]);
+  const openBooking = useCallback(
+    (options = {}) => {
+      const detail = options?.detail ? options.detail : options;
+      requireAuth(() => {
+        setEditAppointment(detail?.editAppointment || null);
+        setOpen(true);
+      });
+    },
+    [requireAuth]
+  );
+
+  const handleOpenClick = useCallback(() => openBooking(), [openBooking]);
+
+  const handleCloseBooking = useCallback(() => {
+    setOpen(false);
+    setEditAppointment(null);
+  }, []);
 
   useEffect(() => {
-    const handler = () => openBooking();
+    const handler = (event) => openBooking(event?.detail || {});
     window.addEventListener("open-booking", handler);
     return () => window.removeEventListener("open-booking", handler);
   }, [openBooking]);
@@ -90,7 +105,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={150}>
             <div className="flex items-center justify-center">
-              <button onClick={openBooking} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
+              <button onClick={handleOpenClick} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ</button>
             </div>
           </Reveal>
         </div>
@@ -111,7 +126,7 @@ export default function Home() {
                   <h3 className="text-xl font-display">{s.name}</h3>
                   <span className="text-lg">{s.price}</span>
                 </div>
-                <button onClick={openBooking} className="inline-block mt-4 text-sm underline">Κράτηση →</button>
+                <button onClick={handleOpenClick} className="inline-block mt-4 text-sm underline">Κράτηση →</button>
               </Reveal>
             ))}
           </div>
@@ -170,7 +185,7 @@ export default function Home() {
       </section>
 
       <Footer />
-      <BookingModal open={open} onClose={() => setOpen(false)} />
+      <BookingModal open={open} onClose={handleCloseBooking} editAppointment={editAppointment} />
     </div>
   );
 }

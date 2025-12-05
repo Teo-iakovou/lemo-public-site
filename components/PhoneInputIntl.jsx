@@ -27,10 +27,13 @@ export default function PhoneInputIntl({ value, onChange, defaultCountry = "CY",
     const v = String(value).replace(/\s+/g, "");
     const found = COUNTRIES.find((c) => v.startsWith(c.dial));
     if (found) {
-      setDial(found.dial);
-      setLocal(digitsOnly(v.slice(found.dial.length)));
+      const nextDial = found.dial;
+      const nextLocal = digitsOnly(v.slice(found.dial.length));
+      setDial((currentDial) => (currentDial === nextDial ? currentDial : nextDial));
+      setLocal((currentLocal) => (currentLocal === nextLocal ? currentLocal : nextLocal));
     } else if (v.trim()) {
-      setLocal(digitsOnly(v));
+      const nextLocal = digitsOnly(v);
+      setLocal((currentLocal) => (currentLocal === nextLocal ? currentLocal : nextLocal));
     } else {
       setLocal("");
     }

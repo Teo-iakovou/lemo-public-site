@@ -5,6 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 export default function SuccessPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode");
+  const isUpdate = mode === "updated";
   const [showBanner, setShowBanner] = useState(true);
 
   useEffect(() => {
@@ -13,8 +16,10 @@ export default function SuccessPage() {
   }, []);
 
   const bannerText = useMemo(() => {
-    return "Your appointment was created successfully.";
-  }, []);
+    return isUpdate
+      ? "Your appointment was updated successfully."
+      : "Your appointment was created successfully.";
+  }, [isUpdate]);
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -25,7 +30,9 @@ export default function SuccessPage() {
               <path fillRule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 1 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4Z" clipRule="evenodd" />
             </svg>
             <div className="text-sm leading-6">
-              <div className="font-medium text-green-300">Appointment created</div>
+              <div className="font-medium text-green-300">
+                {isUpdate ? "Appointment updated" : "Appointment created"}
+              </div>
               <div className="opacity-90">{bannerText}</div>
             </div>
             <button
@@ -43,8 +50,10 @@ export default function SuccessPage() {
         </div>
       )}
 
-      <h1 className="text-2xl font-semibold mt-6">Appointment created</h1>
-      <p className="text-neutral-300 mt-1">Your appointment was created successfully.</p>
+      <h1 className="text-2xl font-semibold mt-6">
+        {isUpdate ? "Appointment updated" : "Appointment created"}
+      </h1>
+      <p className="text-neutral-300 mt-1">{bannerText}</p>
 
       <div className="mt-6 flex gap-3">
         <button

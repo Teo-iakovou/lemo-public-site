@@ -122,6 +122,24 @@ export default function ProfilePanel() {
     [cancelingId]
   );
 
+  const handleReschedule = useCallback(
+    (appt, locked) => {
+      if (!appt || typeof window === "undefined") return;
+      const detail = {
+        editAppointment: {
+          id: appt._id,
+          appointmentDateTime: appt.appointmentDateTime,
+          barber: appt.barber,
+          customerName: appt.customerName,
+          locked,
+        },
+      };
+      closeProfile();
+      window.dispatchEvent(new CustomEvent("open-booking", { detail }));
+    },
+    [closeProfile]
+  );
+
   if (!profileOpen) return null;
 
   return (
@@ -177,6 +195,9 @@ export default function ProfilePanel() {
                 hour12: false,
               });
               const isUpcoming = start.getTime() > Date.now();
+              const originalDateTime = appt.appointmentDateTime;
+              const changeCutoffMs = 24 * 60 * 60 * 1000;
+              const locked = start.getTime() - Date.now() < changeCutoffMs;
               return (
                 <li
                   key={appt._id || `${appt.appointmentDateTime}-${appt.barber}`}
@@ -195,7 +216,19 @@ export default function ProfilePanel() {
                       : "Κλείδωμα"}
                   </div>
                   {appt.type === "appointment" && isUpcoming && (
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleReschedule(appt, locked)}
+                        disabled={locked}
+                        className={`rounded border px-3 py-1 text-xs ${
+                          locked
+                            ? "border-white/10 text-white/40 cursor-not-allowed"
+                            : "border-white/20 text-white hover:bg-white/5"
+                        }`}
+                      >
+                        Αλλαγή ραντεβού
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleCancel(appt._id)}
