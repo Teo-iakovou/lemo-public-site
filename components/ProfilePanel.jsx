@@ -12,6 +12,7 @@ export default function ProfilePanel() {
   const [cancelingId, setCancelingId] = useState(null);
   const [lastFocusedElement, setLastFocusedElement] = useState(null);
   const [showToast, setShowToast] = useState(false);
+  const [confirmPrompt, setConfirmPrompt] = useState(null);
 
   useEffect(() => {
     if (!profileOpen) {
@@ -97,7 +98,7 @@ export default function ProfilePanel() {
     return undefined;
   }, [infoMessage]);
 
-  const handleCancel = useCallback(
+  const performCancel = useCallback(
     async (id) => {
       if (!id || cancelingId) return;
       setCancelingId(id);
@@ -122,7 +123,15 @@ export default function ProfilePanel() {
     [cancelingId]
   );
 
-  const handleReschedule = useCallback(
+  const requestCancel = useCallback(
+    (id) => {
+      if (!id || cancelingId) return;
+      setConfirmPrompt({ type: "cancel", id });
+    },
+    [cancelingId]
+  );
+
+  const performReschedule = useCallback(
     (appt, locked) => {
       if (!appt || typeof window === "undefined") return;
       const detail = {
@@ -139,6 +148,11 @@ export default function ProfilePanel() {
     },
     [closeProfile]
   );
+
+  const requestReschedule = useCallback((appt, locked) => {
+    if (!appt || typeof window === "undefined") return;
+    setConfirmPrompt({ type: "reschedule", appt, locked });
+  }, []);
 
   if (!profileOpen) return null;
 
@@ -219,7 +233,7 @@ export default function ProfilePanel() {
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
                       <button
                         type="button"
-                        onClick={() => handleReschedule(appt, locked)}
+                        onClick={() => requestReschedule(appt, locked)}
                         disabled={locked}
                         className={`rounded border px-3 py-1 text-xs ${
                           locked
@@ -231,7 +245,7 @@ export default function ProfilePanel() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleCancel(appt._id)}
+                        onClick={() => requestCancel(appt._id)}
                         disabled={cancelingId === appt._id}
                         className="rounded border border-red-400 px-3 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50"
                       >
@@ -248,6 +262,43 @@ export default function ProfilePanel() {
           <div className="pointer-events-none absolute left-1/2 bottom-6 -translate-x-1/2">
             <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-emerald-500/90 px-4 py-2 shadow-lg">
               <span className="text-sm font-medium text-white">{infoMessage}</span>
+            </div>
+          </div>
+        )}
+        {confirmPrompt && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/90 p-5 text-white shadow-2xl">
+              <h4 className="text-lg font-semibold mb-2">
+                {confirmPrompt.type === "cancel" ? "Επιβεβαίωση ακύρωσης" : "Επιβεβαίωση αλλαγής"}
+              </h4>
+              <p className="text-sm text-white/70 mb-4">
+                {confirmPrompt.type === "cancel"
+                  ? "Θέλετε σίγουρα να ακυρώσετε αυτό το ραντεβού;"
+                  : "Θέλετε σίγουρα να συνεχίσετε με την αλλαγή του ραντεβού;"}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmPrompt(null)}
+                  className="rounded border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                >
+                  Άκυρο
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmPrompt.type === "cancel") {
+                      performCancel(confirmPrompt.id);
+                    } else if (confirmPrompt.type === "reschedule") {
+                      performReschedule(confirmPrompt.appt, confirmPrompt.locked);
+                    }
+                    setConfirmPrompt(null);
+                  }}
+                  className="rounded bg-white px-3 py-1.5 text-sm font-semibold text-black hover:bg-neutral-200"
+                >
+                  Συνέχεια
+                </button>
+              </div>
             </div>
           </div>
         )}
