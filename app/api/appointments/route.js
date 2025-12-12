@@ -21,7 +21,8 @@ export async function POST(request) {
 
     const headers = { "Content-Type": "application/json" };
     if (!AUTH_DISABLED) {
-      const token = cookies().get("lemo_auth")?.value || "";
+      const cookieStore = await cookies();
+      const token = cookieStore.get("lemo_auth")?.value || "";
       if (token) headers.Authorization = `Bearer ${token}`;
     }
 

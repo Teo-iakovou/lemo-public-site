@@ -7,8 +7,8 @@ export async function DELETE(request, { params }) {
   if (AUTH_DISABLED) {
     return NextResponse.json({ message: "Auth disabled" }, { status: 200 });
   }
-
-  const token = cookies().get("lemo_auth")?.value || "";
+  const cookieStore = await cookies();
+  const token = cookieStore.get("lemo_auth")?.value || "";
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -50,8 +50,8 @@ export async function PUT(request, { params }) {
   if (AUTH_DISABLED) {
     return NextResponse.json({ message: "Auth disabled" }, { status: 503 });
   }
-
-  const token = cookies().get("lemo_auth")?.value || "";
+  const cookieStore = await cookies();
+  const token = cookieStore.get("lemo_auth")?.value || "";
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

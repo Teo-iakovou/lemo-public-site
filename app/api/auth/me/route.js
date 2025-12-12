@@ -7,7 +7,8 @@ export async function GET() {
   if (AUTH_DISABLED) {
     return NextResponse.json({ user: null }, { status: 200 });
   }
-  const token = cookies().get("lemo_auth")?.value || "";
+  const cookieStore = await cookies();
+  const token = cookieStore.get("lemo_auth")?.value || "";
   if (!token) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
