@@ -210,7 +210,7 @@ export default function ProfilePanel() {
               });
               const isUpcoming = start.getTime() > Date.now();
               const originalDateTime = appt.appointmentDateTime;
-              const changeCutoffMs = 24 * 60 * 60 * 1000;
+              const changeCutoffMs = 2 * 60 * 60 * 1000;
               const locked = start.getTime() - Date.now() < changeCutoffMs;
               return (
                 <li
