@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../ai-platform"
+		},
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../LemoAPP"
+		}
+	],
+	"settings": {}
+}

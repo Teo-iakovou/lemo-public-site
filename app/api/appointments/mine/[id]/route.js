@@ -18,7 +18,16 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: "Backend unavailable" }, { status: 503 });
   }
 
-  const id = params?.id || "";
+  const fallbackId = (() => {
+    try {
+      const url = new URL(request.url);
+      const parts = url.pathname.split("/").filter(Boolean);
+      return parts[parts.length - 1] || "";
+    } catch {
+      return "";
+    }
+  })();
+  const id = (params?.id || fallbackId || "").trim();
   if (!id) {
     return NextResponse.json({ error: "Missing appointment id" }, { status: 400 });
   }
@@ -61,7 +70,16 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: "Backend unavailable" }, { status: 503 });
   }
 
-  const id = params?.id?.trim();
+  const fallbackId = (() => {
+    try {
+      const url = new URL(request.url);
+      const parts = url.pathname.split("/").filter(Boolean);
+      return parts[parts.length - 1] || "";
+    } catch {
+      return "";
+    }
+  })();
+  const id = (params?.id || fallbackId || "").trim();
   if (!id) {
     return NextResponse.json({ error: "Missing appointment id" }, { status: 400 });
   }

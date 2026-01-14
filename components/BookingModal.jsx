@@ -707,7 +707,14 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     setError("");
     try {
       const dateTime = `${date}T${time}`;
-      if (editingActive && editContext?.id) {
+      if (editingActive) {
+        const rawId = editContext?.id ?? editContext?._id ?? editContext?.appointmentId;
+        const appointmentId =
+          typeof rawId === "string" ? rawId.trim() : rawId;
+        if (!appointmentId) {
+          setError("Δεν βρέθηκε το ραντεβού. Προσπαθήστε ξανά.");
+          return;
+        }
         const payload = {
           appointmentDateTime: dateTime,
           dateTime,
@@ -715,8 +722,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
           customerName: name,
           phoneNumber: phone,
         };
-        const result = await rescheduleAppointment(editContext.id, payload);
-        const updatedId = result?.appointment?._id || result?.id || editContext.id;
+        const result = await rescheduleAppointment(appointmentId, payload);
+        const updatedId = result?.appointment?._id || result?.id || appointmentId;
         const params = new URLSearchParams();
         if (updatedId) params.set("id", updatedId);
         params.set("mode", "updated");
