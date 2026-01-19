@@ -103,7 +103,9 @@ export async function GET(request) {
   const dbg = {};
   const date = searchParams.get("date");
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
-  const barberRaw = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || "");
+  const explicitBarber = searchParams.get("barber") || "";
+  const barberRaw =
+    barberId === "lemo" ? "ΛΕΜΟ" : barberId === "forou" ? "ΦΟΡΟΥ" : explicitBarber;
   // Normalize to Greek lowercase for local comparisons (matches backend data)
   const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
   if (debugMode) {
@@ -118,6 +120,13 @@ export async function GET(request) {
     'X-Route-Version': 'per-day-v3',
   };
   if (!date) return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'no-date' } } : {}) }, { status: 200, headers: cacheHeaders });
+
+  if (!barberRaw) {
+    return Response.json(
+      { error: "Missing barber. Provide barberId=lemo|forou or barber=ΛΕΜΟ|ΦΟΡΟΥ." },
+      { status: 400, headers: cacheHeaders }
+    );
+  }
 
   const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
   const duration = 40; // minutes per haircut
@@ -180,7 +189,7 @@ export async function GET(request) {
     if (base) {
       const qs = new URLSearchParams({ from: date, to: date });
       // Backend expects Greek barber; do not send barberId
-      if (barberRaw) qs.set("barber", barberRaw);
+      qs.set("barber", barberRaw);
       const backendURL = `${base}/api/appointments/range?${qs.toString()}`;
       if (debugMode) dbg.backendURL = backendURL;
       const res = await fetch(backendURL, { cache: 'no-store' });

@@ -482,7 +482,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   useEffect(() => {
     let mounted = true;
     async function run() {
-      if (!serviceId || !date || !barber) return;
+      if (!date || !barber) return;
       if (isDateManuallyClosed(date)) {
         setSlots([]);
         setLoadingSlots(false);
@@ -525,6 +525,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   // Prefetch availability counts and per-day slots via horizon; prefill first available
   const [highlights, setHighlights] = useState({});
+  const highlightsVersion = useMemo(() => {
+    const keys = Object.keys(highlights);
+    if (!keys.length) return "0";
+    return `${keys.length}:${keys.map((k) => `${k}:${highlights[k]}`).join("|")}`;
+  }, [highlights]);
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
@@ -556,7 +561,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   async function verifyZeroDays(dates, barberId) {
     // Double-check days that show 0 to avoid false "fully booked" indicators
-    if (!serviceId || !barberId) return;
+    if (!barberId) return;
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
     const openWeekdays = new Set([2,3,4,5,6]); // Tue-Sat
     const targets = dates
@@ -598,7 +603,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   useEffect(() => {
     let aborted = false;
     async function run() {
-      if (!open || !serviceId || !barber) return;
+      if (!open || !barber) return;
       // Seed from SSR bundle if present for instant paint
       const initial = typeof window !== 'undefined' ? window.__BOOKING_INITIAL : null;
       try {
@@ -673,7 +678,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         const nDerived = Object.fromEntries(Object.entries(nMap).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0]));
         const mergedCounts = { ...(counts || {}), ...(nCounts || {}), ...derived, ...nDerived };
         // Replace state instead of merging to avoid mixing barbers' data
-        setHighlights(mergedCounts);
+        setHighlights({ ...mergedCounts });
         setSlotsByDate({ ...(map || {}), ...(nMap || {}) });
         // Proactively verify a subset of days that appear as 0 (to avoid false purple bars)
         verifyZeroDays(listMonthDates(currMonthStart), toBarberId(barber));
@@ -835,6 +840,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
               }`}
             >
               <Calendar
+                key={highlightsVersion}
                 value={date}
                 onChange={(ds) => {
                   setDate(ds);

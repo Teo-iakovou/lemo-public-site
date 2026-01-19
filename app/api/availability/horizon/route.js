@@ -57,11 +57,20 @@ export async function GET(request) {
   const days = Math.max(1, Math.min(parseInt(searchParams.get("days") || "14", 10), 90));
   const include = (searchParams.get("include") || "").split(",").map((s) => s.trim()).filter(Boolean);
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
-  const greekBarber = barberId === 'lemo' ? 'ΛΕΜΟ' : barberId === 'forou' ? 'ΦΟΡΟΥ' : (searchParams.get('barber') || '');
-  const normalizedKey = barberId || (greekBarber === 'ΛΕΜΟ' ? 'lemo' : greekBarber === 'ΦΟΡΟΥ' ? 'forou' : '');
+  const explicitBarber = searchParams.get("barber") || "";
+  const greekBarber =
+    barberId === "lemo" ? "ΛΕΜΟ" : barberId === "forou" ? "ΦΟΡΟΥ" : explicitBarber;
+  const normalizedKey =
+    barberId || (greekBarber === "ΛΕΜΟ" ? "lemo" : greekBarber === "ΦΟΡΟΥ" ? "forou" : "");
   // const serviceId = searchParams.get("serviceId"); // reserved
 
   if (!start) return Response.json({}, { status: 200 });
+  if (!greekBarber) {
+    return Response.json(
+      { error: "Missing barber. Provide barberId=lemo|forou or barber=ΛΕΜΟ|ΦΟΡΟΥ." },
+      { status: 400 }
+    );
+  }
 
   // IMPORTANT: include a stable barber key even when only Greek 'barber' is provided
   const cacheKey = `${start}|${days}|${normalizedKey}|${include.sort().join(',')}`;
@@ -86,9 +95,8 @@ export async function GET(request) {
       const from = toYMD(startDate);
       const to = toYMD(endDate);
       const qs = new URLSearchParams({ from, to });
-      // Backend expects 'barber' (Greek). Map stable ASCII ids to Greek here.
-      if (barberId && greekBarber) qs.set('barber', greekBarber);
-      else if (greekBarber) qs.set('barber', greekBarber);
+      // Backend expects 'barber' (Greek). Always set it to avoid unfiltered queries.
+      qs.set("barber", greekBarber);
       if (include.includes('slots')) qs.set('include', 'slots');
       // Always bypass caches for freshness
       const res = await fetch(`${BASE}/api/availability/month?${qs.toString()}`, { cache: 'no-store' });
