@@ -4,6 +4,23 @@ import { useCallback, useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
 
+const DOB_SAFE_VIEW_DATE = new Date(2000, 0, 1);
+const DOB_YEAR_MIN = 1900;
+const DOB_MONTH_LABELS = [
+  "Ιανουάριος",
+  "Φεβρουάριος",
+  "Μάρτιος",
+  "Απρίλιος",
+  "Μάιος",
+  "Ιούνιος",
+  "Ιούλιος",
+  "Αύγουστος",
+  "Σεπτέμβριος",
+  "Οκτώβριος",
+  "Νοέμβριος",
+  "Δεκέμβριος",
+];
+
 function toDateFromDob(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
   const [year, month, day] = value.split("-").map(Number);
@@ -34,6 +51,9 @@ export default function ProfilePanel() {
   const [editingDob, setEditingDob] = useState(false);
   const [dobDraft, setDobDraft] = useState("");
   const [dobCalendarOpen, setDobCalendarOpen] = useState(false);
+  const [dobCalendarViewDate, setDobCalendarViewDate] = useState(DOB_SAFE_VIEW_DATE);
+  const [dobYearStepDone, setDobYearStepDone] = useState(false);
+  const [dobMonthStepDone, setDobMonthStepDone] = useState(false);
   const [savingDob, setSavingDob] = useState(false);
 
   useEffect(() => {
@@ -44,6 +64,9 @@ export default function ProfilePanel() {
       setEditingDob(false);
       setDobDraft("");
       setDobCalendarOpen(false);
+      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+      setDobYearStepDone(false);
+      setDobMonthStepDone(false);
       return;
     }
     let canceled = false;
@@ -89,6 +112,9 @@ export default function ProfilePanel() {
     setEditingDob(false);
     setDobDraft(user?.dob || "");
     setDobCalendarOpen(false);
+    setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+    setDobYearStepDone(false);
+    setDobMonthStepDone(false);
   }, [profileOpen, user?.dob]);
 
   useEffect(() => {
@@ -247,6 +273,22 @@ export default function ProfilePanel() {
     : "—";
   const dobDraftDate = toDateFromDob(dobDraft);
   const dobDraftDisplay = dobDraftDate ? dobDraftDate.toLocaleDateString("el-GR") : "Επιλέξτε ημερομηνία";
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - DOB_YEAR_MIN + 1 }, (_, idx) => currentYear - idx);
+
+  const openDobCalendar = () => {
+    const existingDobDate = toDateFromDob(dobDraft);
+    if (existingDobDate) {
+      setDobCalendarViewDate(existingDobDate);
+      setDobYearStepDone(true);
+      setDobMonthStepDone(true);
+    } else {
+      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+      setDobYearStepDone(false);
+      setDobMonthStepDone(false);
+    }
+    setDobCalendarOpen(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[110] flex justify-end bg-black/70 backdrop-blur-sm">
@@ -265,6 +307,9 @@ export default function ProfilePanel() {
                       setDobDraft(user?.dob || "");
                       setEditingDob(true);
                       setDobCalendarOpen(false);
+                      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+                      setDobYearStepDone(false);
+                      setDobMonthStepDone(false);
                       setError("");
                       setInfoMessage("");
                     }}
@@ -313,8 +358,8 @@ export default function ProfilePanel() {
                       </svg>
                       <button
                         type="button"
-                        onClick={() => setDobCalendarOpen((prev) => !prev)}
-                        onFocus={() => setDobCalendarOpen(true)}
+                        onClick={openDobCalendar}
+                        onFocus={openDobCalendar}
                         disabled={savingDob}
                         className="dob-datepicker-trigger w-full bg-transparent text-left text-white outline-none disabled:opacity-60"
                       >
@@ -325,6 +370,7 @@ export default function ProfilePanel() {
                   {dobCalendarOpen && (
                     <div className="profile-dob-wrap mt-3 w-full overflow-x-hidden rounded-2xl border border-white/10 bg-black/40 p-3">
                       {/* Clamp DOB calendar to panel viewport and scroll internally to avoid clipping on small screens. */}
+                      <p className="mb-2 text-xs text-white/70">1) Διάλεξε Χρονιά  2) Μήνα  3) Ημέρα</p>
                       <div className="dob-datepicker-inline-wrap flex w-full justify-center overflow-x-hidden">
                         <DatePicker
                           inline
@@ -332,10 +378,60 @@ export default function ProfilePanel() {
                           onChange={(date) => {
                             setDobDraft(toDobString(date));
                             setDobCalendarOpen(false);
+                            setDobYearStepDone(true);
+                            setDobMonthStepDone(true);
                           }}
-                          showMonthDropdown
-                          showYearDropdown
-                          dropdownMode="select"
+                          openToDate={dobCalendarViewDate}
+                          onMonthChange={(date) => {
+                            setDobCalendarViewDate(date || dobCalendarViewDate);
+                          }}
+                          onYearChange={(date) => {
+                            setDobCalendarViewDate(date || dobCalendarViewDate);
+                          }}
+                          filterDate={() => dobYearStepDone && dobMonthStepDone}
+                          renderCustomHeader={({ date, changeYear, changeMonth }) => {
+                            const selectedYear = date.getFullYear();
+                            const selectedMonth = date.getMonth();
+                            return (
+                              <div className="mb-2 flex items-center gap-2 px-2">
+                                <select
+                                  value={selectedYear}
+                                  onChange={(e) => {
+                                    const nextYear = Number(e.target.value);
+                                    changeYear(nextYear);
+                                    if (!dobMonthStepDone) changeMonth(0);
+                                    setDobCalendarViewDate(new Date(nextYear, dobMonthStepDone ? selectedMonth : 0, 1));
+                                    setDobYearStepDone(true);
+                                  }}
+                                  className="h-9 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white"
+                                  disabled={savingDob}
+                                >
+                                  {yearOptions.map((year) => (
+                                    <option key={year} value={year}>
+                                      {year}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={selectedMonth}
+                                  onChange={(e) => {
+                                    const nextMonth = Number(e.target.value);
+                                    changeMonth(nextMonth);
+                                    setDobCalendarViewDate(new Date(selectedYear, nextMonth, 1));
+                                    setDobMonthStepDone(true);
+                                  }}
+                                  disabled={!dobYearStepDone || savingDob}
+                                  className="h-9 flex-1 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {DOB_MONTH_LABELS.map((monthLabel, monthIndex) => (
+                                    <option key={monthLabel} value={monthIndex}>
+                                      {monthLabel}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          }}
                           maxDate={new Date()}
                           disabled={savingDob}
                           calendarClassName="dob-datepicker-calendar"

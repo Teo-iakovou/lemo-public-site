@@ -28,6 +28,23 @@ const CTA_LABEL = {
   dob: "Αποθήκευση",
 };
 
+const DOB_SAFE_VIEW_DATE = new Date(2000, 0, 1);
+const DOB_YEAR_MIN = 1900;
+const DOB_MONTH_LABELS = [
+  "Ιανουάριος",
+  "Φεβρουάριος",
+  "Μάρτιος",
+  "Απρίλιος",
+  "Μάιος",
+  "Ιούνιος",
+  "Ιούλιος",
+  "Αύγουστος",
+  "Σεπτέμβριος",
+  "Οκτώβριος",
+  "Νοέμβριος",
+  "Δεκέμβριος",
+];
+
 function isValidDobInput(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
   const date = new Date(`${value}T00:00:00Z`);
@@ -75,6 +92,9 @@ export default function AuthModal() {
   const [dob, setDob] = useState("");
   const [otp, setOtp] = useState("");
   const [dobCalendarOpen, setDobCalendarOpen] = useState(false);
+  const [dobCalendarViewDate, setDobCalendarViewDate] = useState(DOB_SAFE_VIEW_DATE);
+  const [dobYearStepDone, setDobYearStepDone] = useState(false);
+  const [dobMonthStepDone, setDobMonthStepDone] = useState(false);
   const [formError, setFormError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [pendingResetPhone, setPendingResetPhone] = useState("");
@@ -90,6 +110,9 @@ export default function AuthModal() {
       setDob("");
       setOtp("");
       setDobCalendarOpen(false);
+      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+      setDobYearStepDone(false);
+      setDobMonthStepDone(false);
       setFormError("");
       setInfoMessage("");
       setPendingResetPhone("");
@@ -102,6 +125,9 @@ export default function AuthModal() {
     if (mode === "login" || mode === "signup" || mode === "dob") {
       setView(mode);
       setDobCalendarOpen(false);
+      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+      setDobYearStepDone(false);
+      setDobMonthStepDone(false);
       setFormError("");
       setInfoMessage("");
       if (mode === "signup") {
@@ -282,6 +308,22 @@ export default function AuthModal() {
   const showDobField = view === "signup" || view === "dob";
   const showPhoneField = view === "login" || view === "signup" || view === "forgot" || view === "reset";
   const showPasswordField = view === "login" || view === "signup" || view === "reset";
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - DOB_YEAR_MIN + 1 }, (_, idx) => currentYear - idx);
+
+  const openDobCalendar = () => {
+    const existingDobDate = toDateFromDob(dob);
+    if (existingDobDate) {
+      setDobCalendarViewDate(existingDobDate);
+      setDobYearStepDone(true);
+      setDobMonthStepDone(true);
+    } else {
+      setDobCalendarViewDate(DOB_SAFE_VIEW_DATE);
+      setDobYearStepDone(false);
+      setDobMonthStepDone(false);
+    }
+    setDobCalendarOpen(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/75 px-4 py-8">
@@ -341,8 +383,8 @@ export default function AuthModal() {
                   </svg>
                   <button
                     type="button"
-                    onClick={() => setDobCalendarOpen((prev) => !prev)}
-                    onFocus={() => setDobCalendarOpen(true)}
+                    onClick={openDobCalendar}
+                    onFocus={openDobCalendar}
                     disabled={loading}
                     className="dob-datepicker-trigger w-full bg-transparent text-left text-white outline-none disabled:opacity-60"
                   >
@@ -353,6 +395,7 @@ export default function AuthModal() {
               {dobCalendarOpen && (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 p-3">
                   {/* Inline calendar avoids unstable portal/floating alignment inside backdrop-blur + scrolling modal layers. */}
+                  <p className="mb-2 text-xs text-white/70">1) Διάλεξε Χρονιά  2) Μήνα  3) Ημέρα</p>
                   <div className="dob-datepicker-inline-wrap flex justify-center">
                     <DatePicker
                       inline
@@ -360,10 +403,60 @@ export default function AuthModal() {
                       onChange={(date) => {
                         setDob(toDobString(date));
                         setDobCalendarOpen(false);
+                        setDobYearStepDone(true);
+                        setDobMonthStepDone(true);
                       }}
-                      showMonthDropdown
-                      showYearDropdown
-                      dropdownMode="select"
+                      openToDate={dobCalendarViewDate}
+                      onMonthChange={(date) => {
+                        setDobCalendarViewDate(date || dobCalendarViewDate);
+                      }}
+                      onYearChange={(date) => {
+                        setDobCalendarViewDate(date || dobCalendarViewDate);
+                      }}
+                      filterDate={() => dobYearStepDone && dobMonthStepDone}
+                      renderCustomHeader={({ date, changeYear, changeMonth }) => {
+                        const selectedYear = date.getFullYear();
+                        const selectedMonth = date.getMonth();
+                        return (
+                          <div className="mb-2 flex items-center gap-2 px-2">
+                            <select
+                              value={selectedYear}
+                              onChange={(e) => {
+                                const nextYear = Number(e.target.value);
+                                changeYear(nextYear);
+                                if (!dobMonthStepDone) changeMonth(0);
+                                setDobCalendarViewDate(new Date(nextYear, dobMonthStepDone ? selectedMonth : 0, 1));
+                                setDobYearStepDone(true);
+                              }}
+                              className="h-9 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white"
+                              disabled={loading}
+                            >
+                              {yearOptions.map((year) => (
+                                <option key={year} value={year}>
+                                  {year}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={selectedMonth}
+                              onChange={(e) => {
+                                const nextMonth = Number(e.target.value);
+                                changeMonth(nextMonth);
+                                setDobCalendarViewDate(new Date(selectedYear, nextMonth, 1));
+                                setDobMonthStepDone(true);
+                              }}
+                              disabled={!dobYearStepDone || loading}
+                              className="h-9 flex-1 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {DOB_MONTH_LABELS.map((monthLabel, monthIndex) => (
+                                <option key={monthLabel} value={monthIndex}>
+                                  {monthLabel}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      }}
                       maxDate={new Date()}
                       disabled={loading}
                       calendarClassName="dob-datepicker-calendar"
