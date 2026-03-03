@@ -168,3 +168,128 @@ h1, h2, h3, .font-display {
 @media (max-width: 767px) {
   .hero-title { font-size: 12vw; }
 }
+
+/* Auth DOB picker (react-datepicker) */
+.dob-datepicker-input {
+  font-size: 0.98rem;
+  line-height: 1.3rem;
+}
+
+.dob-datepicker-trigger {
+  font-size: 0.98rem;
+  line-height: 1.3rem;
+}
+
+.dob-datepicker-trigger:focus-visible {
+  outline: none;
+}
+
+.dob-datepicker-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.dob-datepicker-calendar {
+  background: #0f1017 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45) !important;
+  color: #fff !important;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui !important;
+  width: min(92vw, 360px) !important;
+  max-width: 360px !important;
+}
+
+.dob-datepicker-inline-wrap .react-datepicker {
+  width: min(92vw, 360px) !important;
+  max-width: 360px !important;
+  max-height: min(80vh, 560px) !important;
+  margin: 0 auto !important;
+  overflow: hidden !important;
+  font-size: 0.95rem !important;
+}
+
+.dob-datepicker-inline-wrap .react-datepicker__month-container {
+  width: 100% !important;
+}
+
+.dob-datepicker-inline-wrap .react-datepicker__day-name,
+.dob-datepicker-inline-wrap .react-datepicker__day {
+  width: 1.95rem !important;
+  line-height: 1.95rem !important;
+  margin: 0.12rem !important;
+}
+
+.dob-datepicker-inline-wrap .react-datepicker__navigation {
+  top: 12px !important;
+}
+
+.dob-datepicker-calendar .react-datepicker__header {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dob-datepicker-calendar .react-datepicker__current-month,
+.dob-datepicker-calendar .react-datepicker__day-name,
+.dob-datepicker-calendar .react-datepicker__day,
+.dob-datepicker-calendar .react-datepicker__year-read-view,
+.dob-datepicker-calendar .react-datepicker__month-read-view,
+.dob-datepicker-calendar .react-datepicker-time__header {
+  color: #f8fafc !important;
+}
+
+.dob-datepicker-calendar .react-datepicker__day:hover,
+.dob-datepicker-calendar .react-datepicker__month-text:hover,
+.dob-datepicker-calendar .react-datepicker__quarter-text:hover,
+.dob-datepicker-calendar .react-datepicker__year-text:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+}
+
+.dob-datepicker-calendar .react-datepicker__day--selected,
+.dob-datepicker-calendar .react-datepicker__day--keyboard-selected {
+  background: #a855f7 !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+
+.dob-datepicker-calendar .react-datepicker__day--outside-month {
+  color: rgba(248, 250, 252, 0.32) !important;
+}
+
+/* Profile panel DOB picker: clamp to side-panel viewport to avoid clipping on small screens. */
+.profile-dob-wrap {
+  max-height: min(60vh, 430px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.profile-dob-wrap .dob-datepicker-inline-wrap {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.profile-dob-wrap .dob-datepicker-inline-wrap .react-datepicker {
+  width: min(100%, 360px) !important;
+  max-width: 360px !important;
+  max-height: none !important;
+}
+
+@media (min-width: 768px) {
+  .dob-datepicker-inline-wrap .react-datepicker {
+    width: min(30vw, 380px) !important;
+    max-width: 380px !important;
+    max-height: min(82vh, 620px) !important;
+    font-size: 0.98rem !important;
+  }
+
+  .dob-datepicker-inline-wrap .react-datepicker__day-name,
+  .dob-datepicker-inline-wrap .react-datepicker__day {
+    width: 2.1rem !important;
+    line-height: 2.1rem !important;
+  }
+
+  .profile-dob-wrap {
+    max-height: min(62vh, 520px);
+  }
+}

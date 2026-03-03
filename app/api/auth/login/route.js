@@ -36,7 +36,11 @@ export async function POST(request) {
         { status: res.status }
       );
     }
-    const response = NextResponse.json({ user: data.user || { username } });
+    const userPayload = data.user || { username };
+    const response = NextResponse.json({
+      user: userPayload,
+      requiresDob: Boolean(userPayload?.requiresDob),
+    });
     if (data.token) {
       response.cookies.set({
         name: "lemo_auth",

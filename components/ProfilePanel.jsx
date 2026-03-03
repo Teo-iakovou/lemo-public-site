@@ -1,10 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
 
+function toDateFromDob(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function toDobString(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function ProfilePanel() {
-  const { profileOpen, closeProfile, user, logout } = useAuth();
+  const { profileOpen, closeProfile, user, logout, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
@@ -12,13 +29,21 @@ export default function ProfilePanel() {
   const [cancelingId, setCancelingId] = useState(null);
   const [lastFocusedElement, setLastFocusedElement] = useState(null);
   const [showToast, setShowToast] = useState(false);
+  const [toastType, setToastType] = useState("success");
   const [confirmPrompt, setConfirmPrompt] = useState(null);
+  const [editingDob, setEditingDob] = useState(false);
+  const [dobDraft, setDobDraft] = useState("");
+  const [dobCalendarOpen, setDobCalendarOpen] = useState(false);
+  const [savingDob, setSavingDob] = useState(false);
 
   useEffect(() => {
     if (!profileOpen) {
       setAppointments([]);
       setError("");
       setInfoMessage("");
+      setEditingDob(false);
+      setDobDraft("");
+      setDobCalendarOpen(false);
       return;
     }
     let canceled = false;
@@ -60,6 +85,13 @@ export default function ProfilePanel() {
   }, [profileOpen, logout]);
 
   useEffect(() => {
+    if (!profileOpen) return;
+    setEditingDob(false);
+    setDobDraft(user?.dob || "");
+    setDobCalendarOpen(false);
+  }, [profileOpen, user?.dob]);
+
+  useEffect(() => {
     if (profileOpen) {
       setLastFocusedElement(document.activeElement);
       document.body.style.top = `-${window.scrollY}px`;
@@ -91,12 +123,61 @@ export default function ProfilePanel() {
       const timeout = window.setTimeout(() => {
         setShowToast(false);
         setInfoMessage("");
+        setToastType("success");
       }, 4000);
       return () => window.clearTimeout(timeout);
     }
     setShowToast(false);
     return undefined;
   }, [infoMessage]);
+
+  const validateDob = useCallback((value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) {
+      return "Συμπληρώστε έγκυρη ημερομηνία.";
+    }
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) return "Η ημερομηνία δεν είναι έγκυρη.";
+    const today = new Date();
+    const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    if (parsed > todayUtc) return "Η ημερομηνία γέννησης δεν μπορεί να είναι στο μέλλον.";
+    return "";
+  }, []);
+
+  const saveDob = useCallback(async () => {
+    if (savingDob) return;
+    const validationMessage = validateDob(dobDraft);
+    if (validationMessage) {
+      setError("");
+      setToastType("error");
+      setInfoMessage(validationMessage);
+      return;
+    }
+
+    setSavingDob(true);
+    setError("");
+    setInfoMessage("");
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dob: dobDraft }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Αποτυχία αποθήκευσης ημερομηνίας γέννησης.");
+      }
+      await refreshUser();
+      setEditingDob(false);
+      setToastType("success");
+      setInfoMessage("Η ημερομηνία γέννησης ενημερώθηκε.");
+    } catch (err) {
+      setDobDraft(user?.dob || "");
+      setToastType("error");
+      setInfoMessage(err.message || "Αποτυχία αποθήκευσης ημερομηνίας γέννησης.");
+    } finally {
+      setSavingDob(false);
+    }
+  }, [dobDraft, refreshUser, savingDob, user?.dob, validateDob]);
 
   const performCancel = useCallback(
     async (id) => {
@@ -113,6 +194,7 @@ export default function ProfilePanel() {
           throw new Error(data?.error || "Η ακύρωση απέτυχε.");
         }
         setAppointments((prev) => prev.filter((appt) => appt._id !== id));
+        setToastType("success");
         setInfoMessage(data?.message || "Το ραντεβού ακυρώθηκε.");
       } catch (err) {
         setError(err.message || "Η ακύρωση απέτυχε.");
@@ -156,6 +238,16 @@ export default function ProfilePanel() {
 
   if (!profileOpen) return null;
 
+  const dobLabel = user?.dob
+    ? new Date(`${user.dob}T00:00:00`).toLocaleDateString("el-GR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "—";
+  const dobDraftDate = toDateFromDob(dobDraft);
+  const dobDraftDisplay = dobDraftDate ? dobDraftDate.toLocaleDateString("el-GR") : "Επιλέξτε ημερομηνία";
+
   return (
     <div className="fixed inset-0 z-[110] flex justify-end bg-black/70 backdrop-blur-sm">
       <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-y-auto">
@@ -163,6 +255,129 @@ export default function ProfilePanel() {
           <div>
             <h2 className="text-xl font-display">Ο λογαριασμός μου</h2>
             <p className="text-sm text-white/60">{user?.username || "Επισκέπτης"}</p>
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] uppercase tracking-[0.14em] text-white/50">Ημερομηνία Γέννησης</span>
+                {!editingDob && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDobDraft(user?.dob || "");
+                      setEditingDob(true);
+                      setDobCalendarOpen(false);
+                      setError("");
+                      setInfoMessage("");
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white"
+                    aria-label="Επεξεργασία ημερομηνίας γέννησης"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                    </svg>
+                    Επεξεργασία
+                  </button>
+                )}
+              </div>
+              {!editingDob ? (
+                <p className="mt-1 text-sm text-white/90">{dobLabel}</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <div className="group relative rounded-2xl border border-white/20 bg-white/[0.08] shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition hover:border-white/35">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent opacity-80" />
+                    <div className="relative flex items-center gap-3 px-4 py-3">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5 text-white/70"
+                        aria-hidden="true"
+                      >
+                        <rect x="3" y="4" width="18" height="18" rx="3" ry="3" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      <button
+                        type="button"
+                        onClick={() => setDobCalendarOpen((prev) => !prev)}
+                        onFocus={() => setDobCalendarOpen(true)}
+                        disabled={savingDob}
+                        className="dob-datepicker-trigger w-full bg-transparent text-left text-white outline-none disabled:opacity-60"
+                      >
+                        {dobDraftDisplay}
+                      </button>
+                    </div>
+                  </div>
+                  {dobCalendarOpen && (
+                    <div className="profile-dob-wrap mt-3 w-full overflow-x-hidden rounded-2xl border border-white/10 bg-black/40 p-3">
+                      {/* Clamp DOB calendar to panel viewport and scroll internally to avoid clipping on small screens. */}
+                      <div className="dob-datepicker-inline-wrap flex w-full justify-center overflow-x-hidden">
+                        <DatePicker
+                          inline
+                          selected={dobDraftDate}
+                          onChange={(date) => {
+                            setDobDraft(toDobString(date));
+                            setDobCalendarOpen(false);
+                          }}
+                          showMonthDropdown
+                          showYearDropdown
+                          dropdownMode="select"
+                          maxDate={new Date()}
+                          disabled={savingDob}
+                          calendarClassName="dob-datepicker-calendar"
+                        />
+                      </div>
+                      <div className="sticky bottom-0 z-[1] mt-3 flex justify-end bg-black/55 py-1 backdrop-blur-sm">
+                        <button
+                          type="button"
+                          onClick={() => setDobCalendarOpen(false)}
+                          disabled={savingDob}
+                          className="rounded-lg border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/75 transition hover:bg-white/10 disabled:opacity-60"
+                        >
+                          Κλείσιμο
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDobDraft(user?.dob || "");
+                        setEditingDob(false);
+                        setDobCalendarOpen(false);
+                      }}
+                      disabled={savingDob}
+                      className="rounded-md border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
+                    >
+                      Άκυρο
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveDob}
+                      disabled={savingDob}
+                      className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-white/90 disabled:opacity-60"
+                    >
+                      {savingDob ? "Αποθήκευση..." : "Αποθήκευση"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={closeProfile}
@@ -260,7 +475,11 @@ export default function ProfilePanel() {
         </section>
         {showToast && infoMessage && (
           <div className="pointer-events-none absolute left-1/2 bottom-6 -translate-x-1/2">
-            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-emerald-500/90 px-4 py-2 shadow-lg">
+            <div
+              className={`pointer-events-auto flex items-center gap-3 rounded-full px-4 py-2 shadow-lg ${
+                toastType === "error" ? "bg-red-500/90" : "bg-emerald-500/90"
+              }`}
+            >
               <span className="text-sm font-medium text-white">{infoMessage}</span>
             </div>
           </div>

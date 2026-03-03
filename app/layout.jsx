@@ -5,6 +5,7 @@ import AuthModal from "../components/AuthModal";
 import ProfilePanel from "../components/ProfilePanel";
 import BarberSettingsModal from "../components/BarberSettingsModal";
 import "./globals.css";
+import "react-datepicker/dist/react-datepicker.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

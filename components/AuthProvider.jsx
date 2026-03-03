@@ -24,6 +24,7 @@ const disabledAuthValue = Object.freeze({
   modalState: {
     open: false,
     mode: "login",
+    requiresDob: false,
     loading: false,
     error: "",
   },
@@ -33,6 +34,7 @@ const disabledAuthValue = Object.freeze({
   authenticate: asyncNoop,
   requestPasswordReset: asyncNoop,
   resetPasswordWithOtp: asyncNoop,
+  completeDob: asyncNoop,
   requireAuth: disabledRequireAuth,
   logout: noop,
   profileOpen: false,
@@ -46,7 +48,13 @@ const disabledAuthValue = Object.freeze({
 
 function withDefaultRole(user) {
   if (!user) return null;
-  return { role: user.role || "customer", ...user };
+  const dob = user.dob || null;
+  return {
+    role: user.role || "customer",
+    ...user,
+    dob,
+    requiresDob: Boolean(user.requiresDob || !dob),
+  };
 }
 
 export default function AuthProvider({ children }) {
@@ -59,6 +67,7 @@ export default function AuthProvider({ children }) {
   const [modalState, setModalState] = useState({
     open: false,
     mode: "login",
+    requiresDob: false,
     loading: false,
     error: "",
   });
@@ -74,7 +83,24 @@ export default function AuthProvider({ children }) {
         return;
       }
       const data = await res.json();
-      setUser(withDefaultRole(data.user));
+      const nextUser = withDefaultRole(data.user);
+      if (nextUser?.requiresDob) {
+        // On hard refresh, force re-login instead of auto-opening the DOB gate.
+        // The gate appears right after the next successful login.
+        try {
+          await fetch("/api/auth/logout", { method: "POST" });
+        } catch {}
+        setUser(null);
+        setModalState((prev) => ({
+          ...prev,
+          open: false,
+          requiresDob: false,
+          loading: false,
+          error: "",
+        }));
+        return;
+      }
+      setUser(nextUser);
     } catch {
       setUser(null);
     } finally {
@@ -87,31 +113,43 @@ export default function AuthProvider({ children }) {
   }, [fetchCurrentUser]);
 
   const openAuthModal = useCallback((mode = "login", onSuccess) => {
+    if (user?.requiresDob) {
+      setModalState({
+        open: true,
+        mode: "dob",
+        requiresDob: true,
+        loading: false,
+        error: "",
+      });
+      return;
+    }
     pendingCallbackRef.current = typeof onSuccess === "function" ? onSuccess : null;
     setModalState({
       open: true,
       mode,
+      requiresDob: false,
       loading: false,
       error: "",
     });
-  }, []);
+  }, [user?.requiresDob]);
 
   const closeAuthModal = useCallback(() => {
+    if (modalState.requiresDob) return;
     pendingCallbackRef.current = null;
-    setModalState((prev) => ({ ...prev, open: false, loading: false, error: "" }));
-  }, []);
+    setModalState((prev) => ({ ...prev, open: false, requiresDob: false, loading: false, error: "" }));
+  }, [modalState.requiresDob]);
 
   const setAuthMode = useCallback((mode) => {
-    setModalState((prev) => ({ ...prev, mode, error: "" }));
+    setModalState((prev) => ({ ...prev, mode, requiresDob: false, error: "" }));
   }, []);
 
-  const authenticate = useCallback(async ({ mode, name, password, phone }) => {
+  const authenticate = useCallback(async ({ mode, name, password, phone, dob }) => {
     setModalState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
       let payload;
       if (mode === "signup") {
-        payload = { name, password, phone };
+        payload = { name, password, phone, dob };
       } else {
         payload = { phone, password };
         if ((!phone || !phone.trim()) && name) {
@@ -127,13 +165,54 @@ export default function AuthProvider({ children }) {
       if (!res.ok) {
         throw new Error(data?.error || data?.message || "Αποτυχία σύνδεσης");
       }
-      setUser(withDefaultRole(data.user));
-      setModalState({ open: false, mode: "login", loading: false, error: "" });
+      const nextUser = withDefaultRole(data.user);
+      setUser(nextUser);
+      if (nextUser?.requiresDob) {
+        setModalState({
+          open: true,
+          mode: "dob",
+          requiresDob: true,
+          loading: false,
+          error: "",
+        });
+      } else {
+        setModalState({ open: false, mode: "login", requiresDob: false, loading: false, error: "" });
+        if (pendingCallbackRef.current) {
+          pendingCallbackRef.current(nextUser || null);
+          pendingCallbackRef.current = null;
+        }
+      }
+      return nextUser || null;
+    } catch (error) {
+      setModalState((prev) => ({
+        ...prev,
+        loading: false,
+        error: error.message || "Σφάλμα",
+      }));
+      throw error;
+    }
+  }, []);
+
+  const completeDob = useCallback(async (dob) => {
+    setModalState((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dob }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Αποτυχία ενημέρωσης DOB");
+      }
+      const nextUser = withDefaultRole(data.user);
+      setUser(nextUser);
+      setModalState({ open: false, mode: "login", requiresDob: false, loading: false, error: "" });
       if (pendingCallbackRef.current) {
-        pendingCallbackRef.current(data.user || null);
+        pendingCallbackRef.current(nextUser || null);
         pendingCallbackRef.current = null;
       }
-      return data.user || null;
+      return nextUser;
     } catch (error) {
       setModalState((prev) => ({
         ...prev,
@@ -199,11 +278,24 @@ export default function AuthProvider({ children }) {
     setUser(null);
     setProfileOpen(false);
     setSettingsOpen(false);
+    setModalState((prev) => ({ ...prev, open: false, requiresDob: false, loading: false, error: "" }));
+    pendingCallbackRef.current = null;
   }, []);
 
   const requireAuth = useCallback(
     (onSuccess) => {
       if (user) {
+        if (user.requiresDob) {
+          pendingCallbackRef.current = typeof onSuccess === "function" ? onSuccess : null;
+          setModalState((prev) => ({
+            ...prev,
+            open: true,
+            mode: "dob",
+            requiresDob: true,
+            error: "",
+          }));
+          return false;
+        }
         if (typeof onSuccess === "function") onSuccess(user);
         return true;
       }
@@ -214,8 +306,16 @@ export default function AuthProvider({ children }) {
   );
 
   const openProfile = useCallback(() => {
-    if (user) {
+    if (user && !user.requiresDob) {
       setProfileOpen(true);
+    } else if (user?.requiresDob) {
+      setModalState({
+        open: true,
+        mode: "dob",
+        requiresDob: true,
+        loading: false,
+        error: "",
+      });
     } else {
       openAuthModal("login", () => setProfileOpen(true));
     }
@@ -231,6 +331,16 @@ export default function AuthProvider({ children }) {
       }
     };
     const currentRole = (user?.role || "customer").toLowerCase();
+    if (user?.requiresDob) {
+      setModalState({
+        open: true,
+        mode: "dob",
+        requiresDob: true,
+        loading: false,
+        error: "",
+      });
+      return;
+    }
     if (!user) {
       openAuthModal("login", allow);
       return;
@@ -259,6 +369,7 @@ export default function AuthProvider({ children }) {
       authenticate,
       requestPasswordReset,
       resetPasswordWithOtp,
+      completeDob,
       requireAuth,
       logout,
       profileOpen,
@@ -279,6 +390,7 @@ export default function AuthProvider({ children }) {
       authenticate,
       requestPasswordReset,
       resetPasswordWithOtp,
+      completeDob,
       requireAuth,
       logout,
       profileOpen,

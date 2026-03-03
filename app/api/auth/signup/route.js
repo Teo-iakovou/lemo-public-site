@@ -11,8 +11,9 @@ export async function POST(request) {
     const username = String(body?.name || body?.username || "").trim();
     const password = String(body?.password || "");
     const rawPhone = String(body?.phone || body?.phoneNumber || "").trim();
+    const dob = String(body?.dob || "").trim();
     const phoneNumber = rawPhone.replace(/\s+/g, "");
-    if (!username || !password || !phoneNumber) {
+    if (!username || !password || !phoneNumber || !dob) {
       return NextResponse.json({ error: "Missing credentials" }, { status: 400 });
     }
     const base = getBackendBaseUrl();
@@ -22,7 +23,7 @@ export async function POST(request) {
     const signupRes = await fetch(`${base}/api/public-auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, phoneNumber }),
+      body: JSON.stringify({ username, password, phoneNumber, dob }),
       cache: "no-store",
     });
     const signupData = await signupRes.json().catch(() => ({}));
@@ -54,7 +55,10 @@ export async function POST(request) {
       userPayload = loginData.user || userPayload;
     }
 
-    const response = NextResponse.json({ user: userPayload });
+    const response = NextResponse.json({
+      user: userPayload,
+      requiresDob: Boolean(userPayload?.requiresDob),
+    });
     if (token) {
       response.cookies.set({
         name: "lemo_auth",

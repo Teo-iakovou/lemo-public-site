@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
 
 const HEADINGS = {
@@ -8,6 +9,7 @@ const HEADINGS = {
   signup: "Δημιουργία Λογαριασμού",
   forgot: "Επαναφορά Κωδικού",
   reset: "Επιβεβαίωση OTP",
+  dob: "Συμπλήρωση Ημερομηνίας Γέννησης",
 };
 
 const DESCRIPTIONS = {
@@ -15,6 +17,7 @@ const DESCRIPTIONS = {
   signup: "Εγγραφείτε για να βλέπετε και να διαχειρίζεστε τα ραντεβού σας.",
   forgot: "Εισάγετε το κινητό σας και θα σας στείλουμε έναν κωδικό OTP.",
   reset: "Πληκτρολογήστε τον κωδικό OTP και ορίστε νέο κωδικό πρόσβασης.",
+  dob: "Για να συνεχίσετε, πρέπει να αποθηκεύσετε ημερομηνία γέννησης (μία φορά).",
 };
 
 const CTA_LABEL = {
@@ -22,24 +25,56 @@ const CTA_LABEL = {
   signup: "Εγγραφή",
   forgot: "Αποστολή OTP",
   reset: "Επιβεβαίωση",
+  dob: "Αποθήκευση",
 };
+
+function isValidDobInput(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const minDate = new Date(Date.UTC(1900, 0, 1));
+  return date >= minDate && date <= todayUtc;
+}
+
+function toDateFromDob(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function toDobString(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function AuthModal() {
   const {
+    user,
     modalState,
     closeAuthModal,
     authenticate,
     setAuthMode,
     requestPasswordReset,
     resetPasswordWithOtp,
+    completeDob,
+    logout,
   } = useAuth();
-  const { open, mode, loading, error } = modalState;
+  const { open, mode, loading, error, requiresDob } = modalState;
 
   const [view, setView] = useState(mode);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [dob, setDob] = useState("");
   const [otp, setOtp] = useState("");
+  const [dobCalendarOpen, setDobCalendarOpen] = useState(false);
   const [formError, setFormError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [pendingResetPhone, setPendingResetPhone] = useState("");
@@ -52,7 +87,9 @@ export default function AuthModal() {
       setName("");
       setPassword("");
       setPhone("");
+      setDob("");
       setOtp("");
+      setDobCalendarOpen(false);
       setFormError("");
       setInfoMessage("");
       setPendingResetPhone("");
@@ -62,16 +99,20 @@ export default function AuthModal() {
 
   useEffect(() => {
     if (!open) return;
-    if (mode === "login" || mode === "signup") {
+    if (mode === "login" || mode === "signup" || mode === "dob") {
       setView(mode);
+      setDobCalendarOpen(false);
       setFormError("");
       setInfoMessage("");
       if (mode === "signup") {
         setName((prev) => prev.trim());
       }
+      if (mode === "dob") {
+        setDob((prev) => prev || user?.dob || "");
+      }
       setShowPassword(false);
     }
-  }, [mode, open]);
+  }, [mode, open, user?.dob]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return undefined;
@@ -158,8 +199,12 @@ export default function AuthModal() {
         await authenticate({ mode: "login", phone: normalizedPhone, password });
         setPassword("");
       } else if (view === "signup") {
-        if (!trimmedName || !password || !normalizedPhone) {
-          setFormError("Συμπληρώστε όνομα, κωδικό και κινητό.");
+        if (!trimmedName || !password || !normalizedPhone || !dob) {
+          setFormError("Συμπληρώστε όνομα, κωδικό, κινητό και ημερομηνία γέννησης.");
+          return;
+        }
+        if (!isValidDobInput(dob)) {
+          setFormError("Η ημερομηνία γέννησης δεν είναι έγκυρη.");
           return;
         }
         await authenticate({
@@ -167,10 +212,12 @@ export default function AuthModal() {
           name: trimmedName,
           password,
           phone: normalizedPhone,
+          dob,
         });
         setName("");
         setPassword("");
         setPhone("");
+        setDob("");
       } else if (view === "forgot") {
         if (!normalizedPhone) {
           setFormError("Συμπληρώστε τον αριθμό κινητού.");
@@ -203,6 +250,16 @@ export default function AuthModal() {
         setOtp("");
         setPassword("");
         setView("login");
+      } else if (view === "dob") {
+        if (!dob) {
+          setFormError("Συμπληρώστε ημερομηνία γέννησης.");
+          return;
+        }
+        if (!isValidDobInput(dob)) {
+          setFormError("Η ημερομηνία γέννησης δεν είναι έγκυρη.");
+          return;
+        }
+        await completeDob(dob);
       }
     } catch (err) {
       const msg = String(err.message || "").toLowerCase().includes("invalid credentials")
@@ -216,13 +273,18 @@ export default function AuthModal() {
   const heading = HEADINGS[view] || HEADINGS.login;
   const description = DESCRIPTIONS[view] || "";
   const cta = CTA_LABEL[view] || CTA_LABEL.login;
+  const dobSelectedDate = toDateFromDob(dob);
+  const dobDisplayValue = dobSelectedDate
+    ? dobSelectedDate.toLocaleDateString("el-GR")
+    : "Επιλέξτε ημερομηνία";
 
   const showNameField = view === "signup";
+  const showDobField = view === "signup" || view === "dob";
   const showPhoneField = view === "login" || view === "signup" || view === "forgot" || view === "reset";
   const showPasswordField = view === "login" || view === "signup" || view === "reset";
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4 py-8 overflow-y-auto">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/75 px-4 py-8">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-black/70 to-black/90 p-8 shadow-[0_25px_60px_rgba(0,0,0,0.45)] backdrop-blur max-h-full overflow-y-auto">
         <div className="text-center space-y-2 mb-6">
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">Lemo Barbershop</p>
@@ -251,6 +313,75 @@ export default function AuthModal() {
               placeholder="Τηλέφωνο"
               disabled={loading}
             />
+          )}
+
+          {showDobField && (
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-white/60">
+                Ημερομηνία Γέννησης
+              </span>
+              <div className="group relative rounded-2xl border border-white/20 bg-white/[0.08] shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition hover:border-white/35">
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent opacity-80" />
+                <div className="relative flex items-center gap-3 px-4 py-3">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5 text-white/70"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="3" ry="3" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <button
+                    type="button"
+                    onClick={() => setDobCalendarOpen((prev) => !prev)}
+                    onFocus={() => setDobCalendarOpen(true)}
+                    disabled={loading}
+                    className="dob-datepicker-trigger w-full bg-transparent text-left text-white outline-none disabled:opacity-60"
+                  >
+                    {dobDisplayValue}
+                  </button>
+                </div>
+              </div>
+              {dobCalendarOpen && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 p-3">
+                  {/* Inline calendar avoids unstable portal/floating alignment inside backdrop-blur + scrolling modal layers. */}
+                  <div className="dob-datepicker-inline-wrap flex justify-center">
+                    <DatePicker
+                      inline
+                      selected={dobSelectedDate}
+                      onChange={(date) => {
+                        setDob(toDobString(date));
+                        setDobCalendarOpen(false);
+                      }}
+                      showMonthDropdown
+                      showYearDropdown
+                      dropdownMode="select"
+                      maxDate={new Date()}
+                      disabled={loading}
+                      calendarClassName="dob-datepicker-calendar"
+                    />
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setDobCalendarOpen(false)}
+                      disabled={loading}
+                      className="rounded-lg border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/75 transition hover:bg-white/10 disabled:opacity-60"
+                    >
+                      Κλείσιμο
+                    </button>
+                  </div>
+                </div>
+              )}
+            </label>
           )}
 
           {view === "reset" && (
@@ -351,7 +482,8 @@ export default function AuthModal() {
           </div>
         )}
 
-        <div className="mt-6 text-center text-sm text-white/70">
+        {view !== "dob" && (
+          <div className="mt-6 text-center text-sm text-white/70">
           {view === "signup" ? (
             <>
               Έχετε ήδη λογαριασμό;{" "}
@@ -389,17 +521,30 @@ export default function AuthModal() {
               </button>
             </>
           )}
-        </div>
+          </div>
+        )}
 
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={closeAuthModal}
-            className="rounded-xl border border-white/20 px-5 py-2 text-sm text-white/75 transition hover:bg-white/10"
-            disabled={loading}
-          >
-            Άκυρο
-          </button>
+        <div className="mt-6 flex justify-center gap-3">
+          {!requiresDob && (
+            <button
+              type="button"
+              onClick={closeAuthModal}
+              className="rounded-xl border border-white/20 px-5 py-2 text-sm text-white/75 transition hover:bg-white/10"
+              disabled={loading}
+            >
+              Άκυρο
+            </button>
+          )}
+          {requiresDob && view === "dob" && (
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-xl border border-red-400/50 px-5 py-2 text-sm text-red-200 transition hover:bg-red-500/10"
+              disabled={loading}
+            >
+              Αποσύνδεση
+            </button>
+          )}
         </div>
       </div>
     </div>

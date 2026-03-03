@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import DobPicker from "./DobPicker";
 import Calendar from "./Calendar";
 import PhoneInputIntl from "./PhoneInputIntl";
 import WaitlistModal from "./WaitlistModal";
@@ -79,7 +78,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState(""); // deprecated in UI; kept for compatibility
-  const [dob, setDob] = useState(""); // YYYY-MM-DD optional
   const [time, setTime] = useState("");
   const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
@@ -124,7 +122,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     setName("");
     setPhone("");
     setEmail("");
-    setDob("");
     setWaitlistToast("");
     setWaitlistOpen(false);
   }
@@ -735,7 +732,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         router.push(`/success?${params.toString()}`);
       } else {
         const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
-        if (dob) payload.dateOfBirth = dob;
         const result = await createAppointment(payload);
         const id = result?.id || result?._id || "";
         const p = new URLSearchParams();
@@ -1080,9 +1076,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                 />
               </label>
               {/* Email field removed from public UI */}
-              <label className="block">
-                <DobPicker value={dob} onChange={setDob} />
-              </label>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <div
                 className="sticky bottom-0 left-0 right-0 z-10 -mx-2 flex items-center gap-3 bg-black/90 px-2 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0"
