@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AUTH_DISABLED } from "../lib/auth";
 
 const AuthContext = createContext(null);
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
@@ -77,7 +78,7 @@ export default function AuthProvider({ children }) {
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const res = await fetch(`${API_BASE}/api/auth/me`, { cache: "no-store" });
       if (!res.ok) {
         setUser(null);
         return;
@@ -196,7 +197,7 @@ export default function AuthProvider({ children }) {
   const completeDob = useCallback(async (dob) => {
     setModalState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dob }),
