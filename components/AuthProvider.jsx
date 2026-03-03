@@ -78,7 +78,10 @@ export default function AuthProvider({ children }) {
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, { cache: "no-store" });
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        cache: "no-store",
+        credentials: "include",
+      });
       if (!res.ok) {
         setUser(null);
         return;
@@ -201,6 +204,7 @@ export default function AuthProvider({ children }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dob }),
+        credentials: "include",
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
