@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 const DOB_SAFE_VIEW_DATE = new Date(2000, 0, 1);
 const DOB_YEAR_MIN = 1900;
 const DOB_MONTH_LABELS = [
@@ -184,7 +183,7 @@ export default function ProfilePanel() {
     setError("");
     setInfoMessage("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await fetch("/api/auth/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dob: dobDraft }),
