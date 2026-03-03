@@ -522,11 +522,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   // Prefetch availability counts and per-day slots via horizon; prefill first available
   const [highlights, setHighlights] = useState({});
-  const highlightsVersion = useMemo(() => {
-    const keys = Object.keys(highlights);
-    if (!keys.length) return "0";
-    return `${keys.length}:${keys.map((k) => `${k}:${highlights[k]}`).join("|")}`;
-  }, [highlights]);
   const [loadingHints, setLoadingHints] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [blockCalendar, setBlockCalendar] = useState(false);
@@ -836,7 +831,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
               }`}
             >
               <Calendar
-                key={highlightsVersion}
                 value={date}
                 onChange={(ds) => {
                   setDate(ds);
