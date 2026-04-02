@@ -19,11 +19,21 @@ export default function MaintenancePage() {
     >
       <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
         {/* Logo */}
-        <div style={{ margin: "0 auto 2rem", width: 80 }}>
+        <div
+          style={{
+            width: 120,
+            height: 120,
+            borderRadius: "50%",
+            overflow: "hidden",
+            margin: "0 auto 2rem",
+            border: "1px solid #2a2a2a",
+            boxShadow: "0 0 0 4px #1a1a1a",
+          }}
+        >
           <img
-            src="/LemoLogo_no_bg.png"
+            src="/LemoLogo.png"
             alt="Lemo Barbershop"
-            style={{ width: 80, height: 80, objectFit: "contain" }}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         </div>
 
