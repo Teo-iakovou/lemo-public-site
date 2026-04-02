@@ -19,21 +19,12 @@ export default function MaintenancePage() {
     >
       <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
         {/* Logo */}
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            background: "#1a1a1a",
-            border: "1px solid #333",
-            borderRadius: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 2rem",
-            fontSize: 28,
-          }}
-        >
-          ✂️
+        <div style={{ margin: "0 auto 2rem", width: 80 }}>
+          <img
+            src="/LemoLogo_no_bg.png"
+            alt="Lemo Barbershop"
+            style={{ width: 80, height: 80, objectFit: "contain" }}
+          />
         </div>
 
         {/* Badge */}
