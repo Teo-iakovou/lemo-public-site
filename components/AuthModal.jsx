@@ -289,7 +289,7 @@ export default function AuthModal() {
       }
     } catch (err) {
       const msg = String(err.message || "").toLowerCase().includes("invalid credentials")
-        ? "Λάθος στοιχεία σύνδεσης."
+        ? "Λάθος στοιχεία σύνδεσης. Αν δεν έχετε λογαριασμό, εγγραφείτε παρακάτω."
         : err.message || "Κάτι πήγε στραβά.";
       setFormError(msg);
     }
@@ -333,6 +333,20 @@ export default function AuthModal() {
           <h2 className="text-2xl font-display text-white">{heading}</h2>
           {description && <p className="text-sm text-white/70">{description}</p>}
         </div>
+
+        {view === "login" && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
+            Το σύστημα ανανεώθηκε πρόσφατα. Αν είχατε λογαριασμό, χρειάζεται να{" "}
+            <button
+              type="button"
+              onClick={goToSignup}
+              className="underline underline-offset-2 font-semibold hover:text-white transition"
+            >
+              εγγραφείτε ξανά
+            </button>
+            .
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           {showNameField && (
@@ -548,9 +562,19 @@ export default function AuthModal() {
           )}
 
           {combinedError && (
-            <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-              {combinedError}
-            </p>
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              <p>{combinedError}</p>
+              {view === "login" && (
+                <button
+                  type="button"
+                  onClick={goToSignup}
+                  disabled={loading}
+                  className="mt-2 block w-full rounded-lg border border-white/20 py-1.5 text-center text-xs font-semibold text-white/90 hover:bg-white/10 transition"
+                >
+                  Δημιουργία νέου λογαριασμού →
+                </button>
+              )}
+            </div>
           )}
 
           <button
@@ -594,11 +618,11 @@ export default function AuthModal() {
               Δεν έχετε λογαριασμό;{" "}
               <button
                 type="button"
-                className="text-purple-300 hover:text-purple-200 underline"
+                className="font-semibold text-white hover:text-white/80 underline underline-offset-4"
                 onClick={goToSignup}
                 disabled={loading}
               >
-                Δημιουργία
+                Δημιουργία λογαριασμού
               </button>
             </>
           ) : (
