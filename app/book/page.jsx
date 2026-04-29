@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getServices } from "../../lib/api";
 import BookingProgress from "../../components/BookingProgress";
+import { useLanguage } from "../../components/LanguageProvider";
 
 export default function BookServicePage() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { t } = useLanguage();
 
   useEffect(() => {
     let mounted = true;
@@ -19,7 +21,7 @@ export default function BookServicePage() {
         if (!mounted) return;
         setServices(Array.isArray(data) ? data : data?.services || []);
       })
-      .catch((e) => setError(e.message || "Failed to load services"))
+      .catch((e) => setError(e.message || t("bookPages.loadingServices")))
       .finally(() => setLoading(false));
     return () => {
       mounted = false;
@@ -43,12 +45,12 @@ export default function BookServicePage() {
       <Suspense fallback={<div className="my-2" />}> 
         <BookingProgress />
       </Suspense>
-      <h1 className="text-2xl font-semibold">Book an appointment</h1>
-      <p className="text-neutral-600">Select a service to continue.</p>
+      <h1 className="text-2xl font-semibold">{t("bookPages.appointment")}</h1>
+      <p className="text-neutral-600">{t("bookPages.selectService")}</p>
       {services.length === 1 && (
-        <p className="mt-2 text-neutral-600">Redirecting to date selection…</p>
+        <p className="mt-2 text-neutral-600">{t("bookPages.redirecting")}</p>
       )}
-      {loading && <p className="mt-2">Loading services…</p>}
+      {loading && <p className="mt-2">{t("bookPages.loadingServices")}</p>}
       {error && <p className="mt-2 text-red-600">{error}</p>}
       <div className="grid gap-3 mt-4">
         {services.map((s) => (

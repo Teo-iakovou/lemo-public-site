@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import WaitlistModal from "./WaitlistModal";
+import { useLanguage } from "./LanguageProvider";
 
 function toYMD(d) {
   // Local date string: YYYY-MM-DD (avoid UTC shift from toISOString)
@@ -25,9 +26,6 @@ function endOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
-// Greek weekday abbreviations, Monday-first: Δευ, Τρι, Τετ, Πεμ, Παρ, Σαβ, Κυρ
-const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ", "Σαβ", "Κυρ"];
-
 export default function Calendar({
   value,
   onChange,
@@ -41,6 +39,7 @@ export default function Calendar({
   allowedDates = [],
   waitlistOptions,
 }) {
+  const { t, locale } = useLanguage();
   const today = useMemo(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
@@ -89,7 +88,14 @@ export default function Calendar({
     return { start, end, weeks };
   }, [cursor]);
 
-  // Weekday labels remain English abbreviations
+  const weekdayLabels = useMemo(() => {
+    const baseMonday = new Date(Date.UTC(2026, 0, 5)); // Monday
+    return Array.from({ length: 7 }, (_, index) =>
+      new Intl.DateTimeFormat(locale, { weekday: "short" }).format(
+        new Date(baseMonday.getTime() + index * 24 * 60 * 60 * 1000)
+      )
+    );
+  }, [locale]);
 
   function isDisabled(d) {
     const ds = toYMD(d);
@@ -128,7 +134,7 @@ export default function Calendar({
     try {
       const [y, m, d] = waitlistDate.split("-").map(Number);
       const dt = new Date(y, m - 1, d);
-      return new Intl.DateTimeFormat("el-GR", {
+      return new Intl.DateTimeFormat(locale, {
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -180,10 +186,10 @@ export default function Calendar({
             disabled={!canPrev}
             className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
           >
-            Προηγούμενος
+            {t("calendar.prev")}
           </button>
           <div className="font-display text-lg">
-            {cursor.toLocaleString('el-GR', { month: "long", year: "numeric" })}
+            {cursor.toLocaleString(locale, { month: "long", year: "numeric" })}
           </div>
           <button
             type="button"
@@ -196,19 +202,19 @@ export default function Calendar({
             disabled={!canNext}
             className="px-2 py-1 rounded border border-white/10 text-sm disabled:opacity-40"
           >
-            Επόμενος
+            {t("calendar.next")}
           </button>
         </div>
         {cursorMonthDisabled && (
           <div className="px-4 py-2 text-center text-xs text-amber-200 bg-amber-500/10 border-t border-amber-500/20">
             {cursorMonthHasOverride
-              ? "Ο μήνας είναι κλειστός εκτός από συγκεκριμένες ημέρες."
-              : "Οι κρατήσεις για αυτόν τον μήνα είναι προσωρινά απενεργοποιημένες."}
+              ? t("calendar.monthClosedWithOverrides")
+              : t("calendar.monthClosed")}
           </div>
         )}
 
         <div className="grid grid-cols-7 gap-0">
-          {WEEKDAYS.map((d) => (
+          {weekdayLabels.map((d) => (
             <div key={d} className="bg-transparent text-center py-2 text-xs uppercase tracking-wider text-white/80">
               {d}
             </div>
@@ -284,7 +290,7 @@ export default function Calendar({
                   <span
                     className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-white"
                     aria-hidden
-                    title="Μη διαθέσιμο"
+                    title={t("calendar.unavailable")}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" className="h-3.5 w-3.5">
                       <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -309,15 +315,15 @@ export default function Calendar({
       <div className="mt-3 flex flex-wrap gap-4 text-xs text-white/70">
         <div className="flex items-center gap-2">
           <span className="h-1 w-8 rounded bg-teal-400 inline-block" />
-          <span>Διαθέσιμο</span>
+          <span>{t("calendar.available")}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="h-1 w-8 rounded bg-purple-500 inline-block" />
-          <span>Πλήρες</span>
+          <span>{t("calendar.full")}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="h-1 w-8 rounded bg-red-500 inline-block" />
-          <span>Κλειστό</span>
+          <span>{t("calendar.closed")}</span>
         </div>
       </div>
       </div>
@@ -325,12 +331,12 @@ export default function Calendar({
         <>
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
             <p className="text-base font-semibold">
-              Δεν βρίσκεις την ώρα που θέλεις;
+              {t("calendar.cantFindTime")}
             </p>
             <p className="mt-1 text-sm text-white/70">
               {waitlistDate
-                ? `Ζήτα να ειδοποιηθείς εάν ανοίξει κάποιο ραντεβού για ${readableWaitlistDate}.`
-                : "Διάλεξε ημερομηνία και δήλωσε τη διαθεσιμότητα που σε ενδιαφέρει."}
+                ? t("calendar.waitlistPromptDate", { date: readableWaitlistDate })
+                : t("calendar.waitlistPromptNoDate")}
             </p>
             <button
               type="button"
@@ -338,7 +344,7 @@ export default function Calendar({
               disabled={!waitlistDate}
               className="mt-3 inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
             >
-              Συμμετοχή στη λίστα αναμονής →
+              {t("calendar.joinWaitlist")}
             </button>
           </div>
           <WaitlistModal

@@ -16,6 +16,8 @@ import {
 } from "../lib/api";
 import { DEFAULT_PUBLIC_SETTINGS, VISIBLE_MONTH_LIMITS } from "../lib/publicSettings";
 import { useAuth } from "./AuthProvider";
+import { useLanguage } from "./LanguageProvider";
+import { mapCommonErrorMessage } from "../lib/i18n";
 
 const ATHENS_TIME_ZONE = "Europe/Athens";
 
@@ -58,6 +60,7 @@ function fromGreekBarberName(value = "") {
 }
 
 export default function BookingModal({ open, onClose, editAppointment }) {
+  const { t, locale } = useLanguage();
   const router = useRouter();
   const debugEnabled = (() => {
     if (typeof window === 'undefined') return false;
@@ -131,27 +134,27 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // Dynamic step title shown in the modal header to save vertical space
   const stepTitle = useMemo(() => {
     const base = (!barber)
-      ? "Επιλέξτε κουρέα"
+      ? t("booking.step.selectBarber")
       : (!date)
-        ? "Επιλέξτε ημερομηνία"
+        ? t("booking.step.selectDate")
         : (!time)
-          ? "Επιλέξτε ώρα"
-          : "Τα στοιχεία σας";
-    const prefix = editingActive ? "Αλλαγή ραντεβού — " : "";
+          ? t("booking.step.selectTime")
+          : t("booking.step.yourDetails");
+    const prefix = editingActive ? t("booking.step.editPrefix") : "";
     if (!barber) return `${prefix}${base}`;
     const price = PRICES[toBarberId(barber)];
     const full = price ? `${base} — ${formatEuro(price)}` : base;
     return `${prefix}${full}`.trim();
-  }, [barber, date, time, editingActive]);
+  }, [barber, date, time, editingActive, t]);
   const confirmButtonLabel = editingActive
     ? submitting
-      ? "Αποθήκευση..."
+      ? t("booking.buttons.saving")
       : editContext?.locked
-      ? "Αλλαγές επιτρέπονται έως 24 ώρες πριν"
-      : "Επιβεβαίωση αλλαγών"
+      ? t("booking.buttons.editLocked")
+      : t("booking.buttons.confirmChanges")
     : submitting
-    ? "Γίνεται κράτηση…"
-    : "Επιβεβαίωση και κράτηση";
+    ? t("booking.buttons.creating")
+    : t("booking.buttons.confirmAndBook");
 
   const HORIZON_DAYS = 14;
   const today = useMemo(() => {
@@ -232,13 +235,13 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   }, [waitlistToast]);
 
   const handleWaitlistSuccess = useCallback(() => {
-    setWaitlistToast("✅ Προστέθηκες στη λίστα αναμονής!");
-  }, []);
+    setWaitlistToast(t("booking.toasts.waitlistSuccess"));
+  }, [t]);
 
   function toGreekBarber(id) {
     if (!id) return "";
-    if (id === "Lemo") return "ΛΕΜΟ";
-    if (id === "Forou") return "ΦΟΡΟΥ";
+    if (id === "Lemo") return t("booking.barberNames.lemoUpper");
+    if (id === "Forou") return t("booking.barberNames.forouUpper");
     return id;
   }
   function toBarberId(id) {
@@ -251,8 +254,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // UI display names in Greek (title case), keep payload mapping separate
   function toGreekBarberUI(name) {
     if (!name) return "";
-    if (name === "Lemo") return "Λεμο";
-    if (name === "Forou") return "Φορου";
+    if (name === "Lemo") return t("booking.barberNames.lemoUi");
+    if (name === "Forou") return t("booking.barberNames.forouUi");
     return name;
   }
 
@@ -709,7 +712,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         const appointmentId =
           typeof rawId === "string" ? rawId.trim() : rawId;
         if (!appointmentId) {
-          setError("Δεν βρέθηκε το ραντεβού. Προσπαθήστε ξανά.");
+          setError(mapCommonErrorMessage("request failed", t));
           return;
         }
         const payload = {
@@ -757,7 +760,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
           <div className="font-display text-lg">{stepTitle}</div>
-          <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">Κλείσιμο</button>
+          <button onClick={onClose} className="px-2 py-1 rounded border border-white/10 text-sm">{t("common.close")}</button>
         </div>
 
         {/* Body */}
@@ -909,7 +912,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
             {(calendarBusy && (loadingMonth || loadingHints || loadingPublicSettings)) && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity duration-200 ease-out opacity-100">
                 <div
-                  aria-label="Φόρτωση διαθεσιμότητας"
+                  aria-label={t("booking.labels.loadingAvailability")}
                   className="h-6 w-6 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"
                 />
               </div>
@@ -923,10 +926,10 @@ export default function BookingModal({ open, onClose, editAppointment }) {
             {!time && barber && date && (
               <div>
                 <div className="text-sm mb-2">
-                  Επιλέξτε ώρα για
+                  {t("booking.labels.pickTimeFor")}
                   {" "}
                   <span className="text-purple-500 font-semibold">
-                    {new Date(`${date}T00:00:00`).toLocaleDateString('el-GR', { day: 'numeric', month: 'long' })}
+                    {new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
                   </span>
                 </div>
                 {
@@ -954,22 +957,22 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                       </button>
                     ))}
                     {(!loadingSlots && slots.length === 0) && (
-                      <p className="text-sm text-neutral-400">Δεν υπάρχουν διαθέσιμα</p>
+                      <p className="text-sm text-neutral-400">{t("booking.labels.noSlots")}</p>
                     )}
                   </div>
                 }
                 <div className="mt-4 rounded-2xl border border-white/15 bg-white/5 p-4 text-white">
                   <p className="text-base font-semibold">
-                    Δεν βρίσκεις την ώρα που θέλεις;
+                    {t("booking.labels.cantFindTime")}
                   </p>
                   <p className="mt-1 text-sm text-white/70">
-                    Θα σε ειδοποιήσουμε αν ελευθερωθεί ραντεβού για{" "}
+                    {t("booking.labels.notifyRelease")}{" "}
                     {date
-                      ? new Date(`${date}T00:00:00`).toLocaleDateString("el-GR", {
+                      ? new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
                           day: "numeric",
                           month: "long",
                         })
-                      : "την ημερομηνία που επέλεξες"}.
+                      : t("booking.labels.selectedDate")}.
                   </p>
                   <button
                     type="button"
@@ -977,7 +980,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     onClick={() => setWaitlistOpen(true)}
                     className="mt-3 inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
                   >
-                    Συμμετοχή στη λίστα αναμονής →
+                    {t("booking.buttons.joinWaitlist")}
                   </button>
                 </div>
                 {/* Bottom controls under time slots: Prev (left) and Next (right) */}
@@ -994,8 +997,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                       setBlockCalendar(false);
                     }}
                     className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-white/20 hover:bg-white/10"
-                    aria-label="Πίσω στον κουρέα"
-                    title="Πίσω"
+                    aria-label={t("common.back")}
+                    title={t("common.back")}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                       <path fillRule="evenodd" d="M12.78 16.28a.75.75 0 0 1-1.06 0l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 1 1 1.06 1.06L7.81 9.25H16a.75.75 0 0 1 0 1.5H7.81l4.97 4.97a.75.75 0 0 1 0 1.06Z" clipRule="evenodd" />
@@ -1010,8 +1013,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         ? "bg-white text-black hover:bg-neutral-200"
                         : "bg-neutral-400 text-white/80 cursor-not-allowed"
                     }`}
-                    aria-label="Επόμενο"
-                    title="Επόμενο"
+                    aria-label={t("common.next")}
+                    title={t("common.next")}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                       <path fillRule="evenodd" d="M7.22 3.72a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L12.19 10.75H4a.75.75 0 0 1 0-1.5h8.19L7.22 4.78a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
@@ -1031,16 +1034,16 @@ export default function BookingModal({ open, onClose, editAppointment }) {
               {/* Selection summary */}
               <div className="p-3 border border-white/10 rounded-md bg-white/5 text-sm flex flex-wrap gap-x-4 gap-y-1">
                 <div>
-                  <span className="text-neutral-400">Κουρέας:</span> {toGreekBarberUI(barber) || '-'}
+                  <span className="text-neutral-400">{t("booking.labels.barber")}</span> {toGreekBarberUI(barber) || '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Ημερομηνία:</span> {date ? new Date(`${date}T00:00:00`).toLocaleDateString('el-GR', { day: 'numeric', month: 'long' }) : '-'}
+                  <span className="text-neutral-400">{t("booking.labels.date")}</span> {date ? new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long' }) : '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Ώρα:</span> {time || '-'}
+                  <span className="text-neutral-400">{t("booking.labels.time")}</span> {time || '-'}
                 </div>
                 <div>
-                  <span className="text-neutral-400">Υπηρεσία:</span> {services[0]?.name || 'Κούρεμα'}
+                  <span className="text-neutral-400">{t("booking.labels.service")}</span> {services[0]?.name || t("booking.labels.defaultService")}
                   {barber && (
                     <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
                   )}
@@ -1055,7 +1058,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Όνομα"
+                    placeholder={t("booking.labels.namePlaceholder")}
                     className="flex-1 bg-transparent text-white placeholder:text-neutral-400 outline-none border-0"
                     required
                   />
@@ -1079,8 +1082,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                   type="button"
                   onClick={() => setTime("")}
                   className="px-3 py-2 rounded-md border border-white/20 text-white hover:bg-white/10 inline-flex items-center gap-2 sm:mt-0"
-                  aria-label="Πίσω στις ώρες"
-                  title="Πίσω"
+                  aria-label={t("common.back")}
+                  title={t("common.back")}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                     <path fillRule="evenodd" d="M10.78 3.22a.75.75 0 0 1 0 1.06L5.56 9.5H17a.75.75 0 0 1 0 1.5H5.56l5.22 5.22a.75.75 0 1 1-1.06 1.06l-6.5-6.5a.75.75 0 0 1 0-1.06l6.5-6.5a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
@@ -1097,7 +1100,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
               </div>
               {editingActive && editContext?.locked && (
                 <p className="text-xs text-red-400 mt-2">
-                  Δεν μπορείτε να αλλάξετε το ραντεβού λιγότερο από 24 ώρες πριν. Επικοινωνήστε τηλεφωνικά.
+                  {t("booking.labels.cannotRescheduleLocked")}
                 </p>
               )}
             </form>
@@ -1115,7 +1118,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
           handleWaitlistSuccess();
         }}
         onError={() => {
-          setWaitlistToast("❌ Η εγγραφή στη λίστα απέτυχε. Προσπαθήστε ξανά.");
+          setWaitlistToast(t("booking.toasts.waitlistError"));
         }}
       />
       {waitlistToast && (

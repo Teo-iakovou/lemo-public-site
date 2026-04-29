@@ -3,23 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
+import { useLanguage } from "./LanguageProvider";
+import { mapCommonErrorMessage } from "../lib/i18n";
 
 const DOB_SAFE_VIEW_DATE = new Date(2000, 0, 1);
 const DOB_YEAR_MIN = 1900;
-const DOB_MONTH_LABELS = [
-  "Ιανουάριος",
-  "Φεβρουάριος",
-  "Μάρτιος",
-  "Απρίλιος",
-  "Μάιος",
-  "Ιούνιος",
-  "Ιούλιος",
-  "Αύγουστος",
-  "Σεπτέμβριος",
-  "Οκτώβριος",
-  "Νοέμβριος",
-  "Δεκέμβριος",
-];
 
 function toDateFromDob(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
@@ -38,6 +26,7 @@ function toDobString(value) {
 }
 
 export default function ProfilePanel() {
+  const { t, locale } = useLanguage();
   const { profileOpen, closeProfile, user, logout, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState([]);
@@ -80,10 +69,10 @@ export default function ProfilePanel() {
         if (!res.ok) {
           if (res.status === 401) {
             await logout();
-            if (!canceled) setError("Η συνεδρία έληξε. Συνδεθείτε ξανά.");
+            if (!canceled) setError(t("common.error"));
             return;
           }
-          throw new Error(data?.error || "Αποτυχία φόρτωσης ραντεβού.");
+          throw new Error(data?.error || t("profile.errors.cancelFailed"));
         }
         if (!canceled) {
           const list = Array.isArray(data.appointments) ? data.appointments : [];
@@ -96,7 +85,7 @@ export default function ProfilePanel() {
           );
         }
       } catch (err) {
-        if (!canceled) setError(err.message || "Σφάλμα");
+        if (!canceled) setError(mapCommonErrorMessage(err?.message, t));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -159,15 +148,15 @@ export default function ProfilePanel() {
 
   const validateDob = useCallback((value) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) {
-      return "Συμπληρώστε έγκυρη ημερομηνία.";
+      return t("profile.errors.validDate");
     }
     const parsed = new Date(`${value}T00:00:00Z`);
-    if (Number.isNaN(parsed.getTime())) return "Η ημερομηνία δεν είναι έγκυρη.";
+    if (Number.isNaN(parsed.getTime())) return t("profile.errors.dateInvalid");
     const today = new Date();
     const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    if (parsed > todayUtc) return "Η ημερομηνία γέννησης δεν μπορεί να είναι στο μέλλον.";
+    if (parsed > todayUtc) return t("profile.errors.dateFuture");
     return "";
-  }, []);
+  }, [t]);
 
   const saveDob = useCallback(async () => {
     if (savingDob) return;
@@ -191,20 +180,20 @@ export default function ProfilePanel() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Αποτυχία αποθήκευσης ημερομηνίας γέννησης.");
+        throw new Error(data?.error || t("profile.errors.saveDobFailed"));
       }
       await refreshUser();
       setEditingDob(false);
       setToastType("success");
-      setInfoMessage("Η ημερομηνία γέννησης ενημερώθηκε.");
+      setInfoMessage(t("profile.messages.dobUpdated"));
     } catch (err) {
       setDobDraft(user?.dob || "");
       setToastType("error");
-      setInfoMessage(err.message || "Αποτυχία αποθήκευσης ημερομηνίας γέννησης.");
+      setInfoMessage(mapCommonErrorMessage(err?.message, t));
     } finally {
       setSavingDob(false);
     }
-  }, [dobDraft, refreshUser, savingDob, user?.dob, validateDob]);
+  }, [dobDraft, refreshUser, savingDob, t, user?.dob, validateDob]);
 
   const performCancel = useCallback(
     async (id) => {
@@ -218,18 +207,18 @@ export default function ProfilePanel() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data?.error || "Η ακύρωση απέτυχε.");
+          throw new Error(data?.error || t("profile.errors.cancelFailed"));
         }
         setAppointments((prev) => prev.filter((appt) => appt._id !== id));
         setToastType("success");
-        setInfoMessage(data?.message || "Το ραντεβού ακυρώθηκε.");
+        setInfoMessage(data?.message || t("profile.messages.appointmentCancelled"));
       } catch (err) {
-        setError(err.message || "Η ακύρωση απέτυχε.");
+        setError(mapCommonErrorMessage(err?.message, t));
       } finally {
         setCancelingId(null);
       }
     },
-    [cancelingId]
+    [cancelingId, t]
   );
 
   const requestCancel = useCallback(
@@ -266,14 +255,17 @@ export default function ProfilePanel() {
   if (!profileOpen) return null;
 
   const dobLabel = user?.dob
-    ? new Date(`${user.dob}T00:00:00`).toLocaleDateString("el-GR", {
+    ? new Date(`${user.dob}T00:00:00`).toLocaleDateString(locale, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       })
     : "—";
   const dobDraftDate = toDateFromDob(dobDraft);
-  const dobDraftDisplay = dobDraftDate ? dobDraftDate.toLocaleDateString("el-GR") : "Επιλέξτε ημερομηνία";
+  const dobDraftDisplay = dobDraftDate ? dobDraftDate.toLocaleDateString(locale) : t("common.selectDate");
+  const dobMonthLabels = Array.from({ length: 12 }, (_, monthIndex) =>
+    new Date(2026, monthIndex, 1).toLocaleString(locale, { month: "long" })
+  );
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear - DOB_YEAR_MIN + 1 }, (_, idx) => currentYear - idx);
 
@@ -296,11 +288,11 @@ export default function ProfilePanel() {
       <div className="relative h-full w-full max-w-md bg-black text-white border-l border-white/10 p-6 overflow-y-auto">
         <header className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-display">Ο λογαριασμός μου</h2>
-            <p className="text-sm text-white/60">{user?.username || "Επισκέπτης"}</p>
+            <h2 className="text-xl font-display">{t("profile.title")}</h2>
+            <p className="text-sm text-white/60">{user?.username || t("profile.guest")}</p>
             <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] uppercase tracking-[0.14em] text-white/50">Ημερομηνία Γέννησης</span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-white/50">{t("profile.dobLabel")}</span>
                 {!editingDob && (
                   <button
                     type="button"
@@ -315,7 +307,7 @@ export default function ProfilePanel() {
                       setInfoMessage("");
                     }}
                     className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white"
-                    aria-label="Επεξεργασία ημερομηνίας γέννησης"
+                    aria-label={t("profile.editDobAria")}
                   >
                     <svg
                       aria-hidden="true"
@@ -330,7 +322,7 @@ export default function ProfilePanel() {
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
                     </svg>
-                    Επεξεργασία
+                    {t("common.edit")}
                   </button>
                 )}
               </div>
@@ -371,7 +363,7 @@ export default function ProfilePanel() {
                   {dobCalendarOpen && (
                     <div className="profile-dob-wrap mt-3 w-full overflow-x-hidden rounded-2xl border border-white/10 bg-black/40 p-3">
                       {/* Clamp DOB calendar to panel viewport and scroll internally to avoid clipping on small screens. */}
-                      <p className="mb-2 text-xs text-white/70">1) Διάλεξε Χρονιά  2) Μήνα  3) Ημέρα</p>
+                      <p className="mb-2 text-xs text-white/70">{t("auth.hints.stepFlow")}</p>
                       <div className="dob-datepicker-inline-wrap flex w-full justify-center overflow-x-hidden">
                         <DatePicker
                           inline
@@ -424,7 +416,7 @@ export default function ProfilePanel() {
                                   disabled={!dobYearStepDone || savingDob}
                                   className="h-9 flex-1 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  {DOB_MONTH_LABELS.map((monthLabel, monthIndex) => (
+                                  {dobMonthLabels.map((monthLabel, monthIndex) => (
                                     <option key={monthLabel} value={monthIndex}>
                                       {monthLabel}
                                     </option>
@@ -445,7 +437,7 @@ export default function ProfilePanel() {
                           disabled={savingDob}
                           className="rounded-lg border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/75 transition hover:bg-white/10 disabled:opacity-60"
                         >
-                          Κλείσιμο
+                          {t("common.close")}
                         </button>
                       </div>
                     </div>
@@ -461,7 +453,7 @@ export default function ProfilePanel() {
                       disabled={savingDob}
                       className="rounded-md border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-60"
                     >
-                      Άκυρο
+                      {t("common.cancel")}
                     </button>
                     <button
                       type="button"
@@ -469,7 +461,7 @@ export default function ProfilePanel() {
                       disabled={savingDob}
                       className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-white/90 disabled:opacity-60"
                     >
-                      {savingDob ? "Αποθήκευση..." : "Αποθήκευση"}
+                      {savingDob ? t("common.saving") : t("common.save")}
                     </button>
                   </div>
                 </div>
@@ -479,7 +471,7 @@ export default function ProfilePanel() {
           <button
             onClick={closeProfile}
             className="h-9 w-9 rounded-full border border-white/15 flex items-center justify-center hover:bg-white/10"
-            aria-label="Κλείσιμο"
+            aria-label={t("common.close")}
           >
             ×
           </button>
@@ -487,35 +479,35 @@ export default function ProfilePanel() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Τα ραντεβού μου</h3>
+            <h3 className="text-lg font-semibold">{t("profile.myAppointments")}</h3>
             <button
               onClick={logout}
               className="text-sm text-red-300 hover:text-red-200 underline"
             >
-              Αποσύνδεση
+              {t("common.logout")}
             </button>
           </div>
           {loading && (
             <div className="flex items-center gap-2 text-sm text-white/80">
               <span className="h-4 w-4 animate-spin rounded-full border border-white/30 border-t-white" />
-              Φόρτωση ραντεβού…
+              {t("profile.loadingAppointments")}
             </div>
           )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           {!loading && !error && appointments.length === 0 && (
             <p className="text-sm text-white/60">
-              Δεν έχετε κλεισμένα ραντεβού ακόμα. Πατήστε &ldquo;ΚΛΕΙΣΤΕ ΡΑΝΤΕΒΟΥ&rdquo; για να προχωρήσετε!
+              {t("profile.noAppointments")}
             </p>
           )}
           <ul className="space-y-3">
             {appointments.map((appt) => {
               const start = new Date(appt.appointmentDateTime);
-              const dateLabel = start.toLocaleDateString("el-GR", {
+              const dateLabel = start.toLocaleDateString(locale, {
                 day: "2-digit",
                 month: "long",
                 year: "numeric",
               });
-              const timeLabel = start.toLocaleTimeString("el-GR", {
+              const timeLabel = start.toLocaleTimeString(locale, {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: false,
@@ -536,10 +528,10 @@ export default function ProfilePanel() {
                   <div className="text-white/80 text-sm">{dateLabel}</div>
                   <div className="text-xs text-white/50 mt-1 capitalize">
                     {appt.type === "appointment"
-                      ? "Ραντεβού"
+                      ? t("profile.types.appointment")
                       : appt.type === "break"
-                      ? "Διάλειμμα"
-                      : "Κλείδωμα"}
+                      ? t("profile.types.break")
+                      : t("profile.types.lock")}
                   </div>
                   {appt.type === "appointment" && isUpcoming && (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -553,7 +545,7 @@ export default function ProfilePanel() {
                             : "border-white/20 text-white hover:bg-white/5"
                         }`}
                       >
-                        Αλλαγή ραντεβού
+                        {t("booking.buttons.confirmChanges")}
                       </button>
                       <button
                         type="button"
@@ -561,7 +553,7 @@ export default function ProfilePanel() {
                         disabled={cancelingId === appt._id}
                         className="rounded border border-red-400 px-3 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50"
                       >
-                        {cancelingId === appt._id ? "Ακύρωση..." : "Ακύρωση ραντεβού"}
+                        {cancelingId === appt._id ? t("common.loading") : t("profile.messages.appointmentCancelled")}
                       </button>
                     </div>
                   )}
@@ -585,12 +577,12 @@ export default function ProfilePanel() {
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4">
             <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/90 p-5 text-white shadow-2xl">
               <h4 className="text-lg font-semibold mb-2">
-                {confirmPrompt.type === "cancel" ? "Επιβεβαίωση ακύρωσης" : "Επιβεβαίωση αλλαγής"}
+                {confirmPrompt.type === "cancel" ? t("profile.messages.confirmCancelTitle") : t("profile.messages.confirmRescheduleTitle")}
               </h4>
               <p className="text-sm text-white/70 mb-4">
                 {confirmPrompt.type === "cancel"
-                  ? "Θέλετε σίγουρα να ακυρώσετε αυτό το ραντεβού;"
-                  : "Θέλετε σίγουρα να συνεχίσετε με την αλλαγή του ραντεβού;"}
+                  ? t("profile.messages.confirmCancelBody")
+                  : t("profile.messages.confirmRescheduleBody")}
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -598,7 +590,7 @@ export default function ProfilePanel() {
                   onClick={() => setConfirmPrompt(null)}
                   className="rounded border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
                 >
-                  Άκυρο
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="button"
@@ -612,7 +604,7 @@ export default function ProfilePanel() {
                   }}
                   className="rounded bg-white px-3 py-1.5 text-sm font-semibold text-black hover:bg-neutral-200"
                 >
-                  Συνέχεια
+                  {t("common.next")}
                 </button>
               </div>
             </div>

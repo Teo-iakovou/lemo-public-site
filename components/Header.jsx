@@ -2,9 +2,11 @@
 import Link from "next/link";
 import { useCallback, useMemo } from "react";
 import { useAuth } from "./AuthProvider";
+import { useLanguage } from "./LanguageProvider";
 
 export default function Header() {
   const { user, openAuthModal, openProfile, openSettings } = useAuth();
+  const { lang, setLang, t } = useLanguage();
 
   const canManageSettings = useMemo(() => {
     if (!user) return false;
@@ -35,10 +37,10 @@ export default function Header() {
         </div>
 
         <nav className="hidden sm:flex items-center justify-center gap-6 text-sm flex-1">
-            <Link href="#services" className="hover:opacity-80">Υπηρεσίες</Link>
-            <Link href="#booking-hours" className="hover:opacity-80">Ώρες</Link>
-            <Link href="#location" className="hover:opacity-80">Τοποθεσία</Link>
-            <Link href="#footer" className="hover:opacity-80">Επικοινωνία</Link>
+            <Link href="#services" className="hover:opacity-80">{t("nav.services")}</Link>
+            <Link href="#booking-hours" className="hover:opacity-80">{t("nav.hours")}</Link>
+            <Link href="#location" className="hover:opacity-80">{t("nav.location")}</Link>
+            <Link href="#footer" className="hover:opacity-80">{t("nav.contact")}</Link>
         </nav>
 
         <Link
@@ -54,11 +56,33 @@ export default function Header() {
         </Link>
 
         <div className="flex justify-end flex-1 sm:flex-none sm:relative gap-2">
+          <div className="inline-flex items-center rounded-full border border-white/15 bg-white/5 p-0.5">
+            <button
+              type="button"
+              onClick={() => setLang("el")}
+              className={`h-7 rounded-full px-2 text-[11px] font-semibold transition ${
+                lang === "el" ? "bg-white text-black" : "text-white/80 hover:text-white"
+              }`}
+              aria-label="Greek"
+            >
+              ΕΛ
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang("en")}
+              className={`h-7 rounded-full px-2 text-[11px] font-semibold transition ${
+                lang === "en" ? "bg-white text-black" : "text-white/80 hover:text-white"
+              }`}
+              aria-label="English"
+            >
+              EN
+            </button>
+          </div>
           {canManageSettings && (
             <button
               onClick={openSettings}
               className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-white/15 bg-white/5 text-xs sm:text-sm font-semibold text-white flex items-center justify-center hover:bg-white/10 transition"
-              aria-label="Ρυθμίσεις"
+              aria-label={t("nav.settings")}
               type="button"
             >
               <svg
@@ -79,11 +103,15 @@ export default function Header() {
           <button
             onClick={onProfileClick}
             className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-white/15 bg-white/5 text-xs sm:text-sm font-semibold text-white flex items-center justify-center hover:bg-white/10 transition"
-            aria-label={user ? `Προφίλ του ${user.username}` : "Σύνδεση"}
+            aria-label={
+              user
+                ? t("nav.profileOf", { username: user.username })
+                : t("nav.login")
+            }
             type="button"
           >
             {user ? (
-              (user.username || "Προφίλ").trim().slice(0, 1).toUpperCase()
+              (user.username || t("nav.profileFallback")).trim().slice(0, 1).toUpperCase()
             ) : (
               <svg
                 viewBox="0 0 24 24"

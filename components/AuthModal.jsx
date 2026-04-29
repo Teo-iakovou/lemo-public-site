@@ -3,47 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import { useAuth } from "./AuthProvider";
-
-const HEADINGS = {
-  login: "Σύνδεση",
-  signup: "Δημιουργία Λογαριασμού",
-  forgot: "Επαναφορά Κωδικού",
-  reset: "Επιβεβαίωση OTP",
-  dob: "Συμπλήρωση Ημερομηνίας Γέννησης",
-};
-
-const DESCRIPTIONS = {
-  login: "Συνδεθείτε για να δείτε τις κρατήσεις σας.",
-  signup: "Εγγραφείτε για να βλέπετε και να διαχειρίζεστε τα ραντεβού σας.",
-  forgot: "Εισάγετε το κινητό σας και θα σας στείλουμε έναν κωδικό OTP.",
-  reset: "Πληκτρολογήστε τον κωδικό OTP και ορίστε νέο κωδικό πρόσβασης.",
-  dob: "Για να συνεχίσετε, πρέπει να αποθηκεύσετε ημερομηνία γέννησης (μία φορά).",
-};
-
-const CTA_LABEL = {
-  login: "Σύνδεση",
-  signup: "Εγγραφή",
-  forgot: "Αποστολή OTP",
-  reset: "Επιβεβαίωση",
-  dob: "Αποθήκευση",
-};
+import { mapCommonErrorMessage } from "../lib/i18n";
+import { useLanguage } from "./LanguageProvider";
 
 const DOB_SAFE_VIEW_DATE = new Date(2000, 0, 1);
 const DOB_YEAR_MIN = 1900;
-const DOB_MONTH_LABELS = [
-  "Ιανουάριος",
-  "Φεβρουάριος",
-  "Μάρτιος",
-  "Απρίλιος",
-  "Μάιος",
-  "Ιούνιος",
-  "Ιούλιος",
-  "Αύγουστος",
-  "Σεπτέμβριος",
-  "Οκτώβριος",
-  "Νοέμβριος",
-  "Δεκέμβριος",
-];
 
 function isValidDobInput(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
@@ -72,6 +36,7 @@ function toDobString(value) {
 }
 
 export default function AuthModal() {
+  const { t, locale } = useLanguage();
   const {
     user,
     modalState,
@@ -219,18 +184,18 @@ export default function AuthModal() {
     try {
       if (view === "login") {
         if (!normalizedPhone || !password) {
-          setFormError("Συμπληρώστε κινητό και κωδικό.");
+          setFormError(t("auth.errors.fillPhonePassword"));
           return;
         }
         await authenticate({ mode: "login", phone: normalizedPhone, password });
         setPassword("");
       } else if (view === "signup") {
         if (!trimmedName || !password || !normalizedPhone || !dob) {
-          setFormError("Συμπληρώστε όνομα, κωδικό, κινητό και ημερομηνία γέννησης.");
+          setFormError(t("auth.errors.fillSignupFields"));
           return;
         }
         if (!isValidDobInput(dob)) {
-          setFormError("Η ημερομηνία γέννησης δεν είναι έγκυρη.");
+          setFormError(t("auth.errors.invalidDob"));
           return;
         }
         await authenticate({
@@ -246,63 +211,64 @@ export default function AuthModal() {
         setDob("");
       } else if (view === "forgot") {
         if (!normalizedPhone) {
-          setFormError("Συμπληρώστε τον αριθμό κινητού.");
+          setFormError(t("auth.errors.fillPhone"));
           return;
         }
         await requestPasswordReset(normalizedPhone);
         setPendingResetPhone(normalizedPhone);
          setPhone(normalizedPhone);
-        setInfoMessage("Στείλαμε OTP στο κινητό σας. Ισχύει για 10 λεπτά.");
+        setInfoMessage(t("auth.messages.otpSent"));
         setView("reset");
         setOtp("");
         setPassword("");
       } else if (view === "reset") {
         const targetPhone = normalizedPhone || pendingResetPhone;
         if (!targetPhone) {
-          setFormError("Συμπληρώστε τον αριθμό κινητού.");
+          setFormError(t("auth.errors.fillPhone"));
           return;
         }
         if (!otp) {
-          setFormError("Συμπληρώστε τον κωδικό OTP.");
+          setFormError(t("auth.errors.fillOtp"));
           return;
         }
         if (!password) {
-          setFormError("Συμπληρώστε τον νέο κωδικό.");
+          setFormError(t("auth.errors.fillNewPassword"));
           return;
         }
         await resetPasswordWithOtp({ phone: targetPhone, otp, password });
-        setInfoMessage("Ο κωδικός ενημερώθηκε. Συνδεθείτε με τον νέο κωδικό.");
+        setInfoMessage(t("auth.messages.passwordUpdated"));
         setPendingResetPhone("");
         setOtp("");
         setPassword("");
         setView("login");
       } else if (view === "dob") {
         if (!dob) {
-          setFormError("Συμπληρώστε ημερομηνία γέννησης.");
+          setFormError(t("auth.errors.fillDob"));
           return;
         }
         if (!isValidDobInput(dob)) {
-          setFormError("Η ημερομηνία γέννησης δεν είναι έγκυρη.");
+          setFormError(t("auth.errors.invalidDob"));
           return;
         }
         await completeDob(dob);
       }
     } catch (err) {
-      const msg = String(err.message || "").toLowerCase().includes("invalid credentials")
-        ? "Λάθος στοιχεία σύνδεσης. Αν δεν έχετε λογαριασμό, εγγραφείτε παρακάτω."
-        : err.message || "Κάτι πήγε στραβά.";
+      const msg = mapCommonErrorMessage(err?.message, t);
       setFormError(msg);
     }
   };
 
   const combinedError = formError || error;
-  const heading = HEADINGS[view] || HEADINGS.login;
-  const description = DESCRIPTIONS[view] || "";
-  const cta = CTA_LABEL[view] || CTA_LABEL.login;
+  const heading = t(`auth.headings.${view}`) || t("auth.headings.login");
+  const description = t(`auth.descriptions.${view}`) || "";
+  const cta = t(`auth.cta.${view}`) || t("auth.cta.login");
   const dobSelectedDate = toDateFromDob(dob);
   const dobDisplayValue = dobSelectedDate
-    ? dobSelectedDate.toLocaleDateString("el-GR")
-    : "Επιλέξτε ημερομηνία";
+    ? dobSelectedDate.toLocaleDateString(locale)
+    : t("common.selectDate");
+  const dobMonthLabels = Array.from({ length: 12 }, (_, monthIndex) =>
+    new Date(2026, monthIndex, 1).toLocaleString(locale, { month: "long" })
+  );
 
   const showNameField = view === "signup";
   const showDobField = view === "signup" || view === "dob";
@@ -336,13 +302,13 @@ export default function AuthModal() {
 
         {view === "login" && (
           <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
-            Το σύστημα ανανεώθηκε πρόσφατα. Αν είχατε λογαριασμό, χρειάζεται να{" "}
+            {t("auth.messages.systemUpdated")}{" "}
             <button
               type="button"
               onClick={goToSignup}
               className="underline underline-offset-2 font-semibold hover:text-white transition"
             >
-              εγγραφείτε ξανά
+              {t("auth.messages.signupAgain")}
             </button>
             .
           </div>
@@ -355,7 +321,7 @@ export default function AuthModal() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-              placeholder="Όνομα χρήστη"
+              placeholder={t("auth.fields.username")}
               disabled={loading}
             />
           )}
@@ -366,7 +332,7 @@ export default function AuthModal() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-              placeholder="Τηλέφωνο"
+              placeholder={t("auth.fields.phone")}
               disabled={loading}
             />
           )}
@@ -374,7 +340,7 @@ export default function AuthModal() {
           {showDobField && (
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-white/60">
-                Ημερομηνία Γέννησης
+                {t("auth.fields.dob")}
               </span>
               <div className="group relative rounded-2xl border border-white/20 bg-white/[0.08] shadow-[0_12px_28px_rgba(0,0,0,0.28)] transition hover:border-white/35">
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/[0.05] to-transparent opacity-80" />
@@ -409,7 +375,7 @@ export default function AuthModal() {
               {dobCalendarOpen && (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 p-3">
                   {/* Inline calendar avoids unstable portal/floating alignment inside backdrop-blur + scrolling modal layers. */}
-                  <p className="mb-2 text-xs text-white/70">1) Διάλεξε Χρονιά  2) Μήνα  3) Ημέρα</p>
+                  <p className="mb-2 text-xs text-white/70">{t("auth.hints.stepFlow")}</p>
                   <div className="dob-datepicker-inline-wrap flex justify-center">
                     <DatePicker
                       inline
@@ -462,7 +428,7 @@ export default function AuthModal() {
                               disabled={!dobYearStepDone || loading}
                               className="h-9 flex-1 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {DOB_MONTH_LABELS.map((monthLabel, monthIndex) => (
+                              {dobMonthLabels.map((monthLabel, monthIndex) => (
                                 <option key={monthLabel} value={monthIndex}>
                                   {monthLabel}
                                 </option>
@@ -483,7 +449,7 @@ export default function AuthModal() {
                       disabled={loading}
                       className="rounded-lg border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-white/75 transition hover:bg-white/10 disabled:opacity-60"
                     >
-                      Κλείσιμο
+                      {t("common.close")}
                     </button>
                   </div>
                 </div>
@@ -511,7 +477,9 @@ export default function AuthModal() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 pr-12 text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none focus:ring-2 focus:ring-white/20 transition"
-                placeholder={view === "reset" ? "Νέος κωδικός" : "Κωδικός πρόσβασης"}
+                placeholder={
+                  view === "reset" ? t("auth.fields.newPassword") : t("auth.fields.password")
+                }
                 disabled={loading}
               />
               <button
@@ -519,7 +487,7 @@ export default function AuthModal() {
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute inset-y-0 right-3 flex items-center text-white/70 hover:text-white"
                 tabIndex={-1}
-                aria-label={showPassword ? "Απόκρυψη κωδικού" : "Εμφάνιση κωδικού"}
+                aria-label={showPassword ? t("auth.actions.closePassword") : t("auth.actions.showPassword")}
               >
                 {showPassword ? (
                   <svg
@@ -571,7 +539,7 @@ export default function AuthModal() {
                   disabled={loading}
                   className="mt-2 block w-full rounded-lg border border-white/20 py-1.5 text-center text-xs font-semibold text-white/90 hover:bg-white/10 transition"
                 >
-                  Δημιουργία νέου λογαριασμού →
+                  {t("auth.links.createNewAccountArrow")}
                 </button>
               )}
             </div>
@@ -582,7 +550,7 @@ export default function AuthModal() {
             disabled={loading}
             className="w-full rounded-xl bg-white py-3 font-semibold text-black transition hover:bg-white/90 disabled:opacity-60"
           >
-            {loading ? "Επεξεργασία..." : cta}
+            {loading ? t("common.loading") : cta}
           </button>
         </form>
 
@@ -594,7 +562,7 @@ export default function AuthModal() {
               onClick={goToForgot}
               disabled={loading}
             >
-              Ξεχάσατε τον κωδικό;
+              {t("auth.links.forgotPassword")}
             </button>
           </div>
         )}
@@ -603,38 +571,38 @@ export default function AuthModal() {
           <div className="mt-6 text-center text-sm text-white/70">
           {view === "signup" ? (
             <>
-              Έχετε ήδη λογαριασμό;{" "}
+              {t("auth.links.haveAccount")}{" "}
               <button
                 type="button"
                 className="text-white hover:text-white/80 underline underline-offset-4"
                 onClick={goToLogin}
                 disabled={loading}
               >
-                Συνδεθείτε
+                {t("auth.links.signIn")}
               </button>
             </>
           ) : view === "login" ? (
             <>
-              Δεν έχετε λογαριασμό;{" "}
+              {t("auth.links.noAccount")}{" "}
               <button
                 type="button"
                 className="font-semibold text-white hover:text-white/80 underline underline-offset-4"
                 onClick={goToSignup}
                 disabled={loading}
               >
-                Δημιουργία λογαριασμού
+                {t("auth.links.createAccount")}
               </button>
             </>
           ) : (
             <>
-              Θυμηθήκατε τον κωδικό;{" "}
+              {t("auth.links.rememberPassword")}{" "}
               <button
                 type="button"
                 className="text-white hover:text-white/80 underline underline-offset-4"
                 onClick={goToLogin}
                 disabled={loading}
               >
-                Σύνδεση
+                {t("auth.cta.login")}
               </button>
             </>
           )}
@@ -649,7 +617,7 @@ export default function AuthModal() {
               className="rounded-xl border border-white/20 px-5 py-2 text-sm text-white/75 transition hover:bg-white/10"
               disabled={loading}
             >
-              Άκυρο
+              {t("common.cancel")}
             </button>
           )}
           {requiresDob && view === "dob" && (
@@ -659,7 +627,7 @@ export default function AuthModal() {
               className="rounded-xl border border-red-400/50 px-5 py-2 text-sm text-red-200 transition hover:bg-red-500/10"
               disabled={loading}
             >
-              Αποσύνδεση
+              {t("common.logout")}
             </button>
           )}
         </div>

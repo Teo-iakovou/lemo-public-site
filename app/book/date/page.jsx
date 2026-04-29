@@ -6,11 +6,13 @@ import Link from "next/link";
 import BookingProgress from "../../../components/BookingProgress";
 import Calendar from "../../../components/Calendar";
 import { getAvailability } from "../../../lib/api";
+import { useLanguage } from "../../../components/LanguageProvider";
 
 function BookDateInner() {
   const search = useSearchParams();
   const serviceId = search.get("serviceId") || "";
   const barberId = (search.get("barberId") || "").toLowerCase();
+  const { t } = useLanguage();
   const [date, setDate] = useState("");
   const [highlights, setHighlights] = useState({});
   const [loadingHints, setLoadingHints] = useState(false);
@@ -77,16 +79,18 @@ function BookDateInner() {
   }, [toastMessage]);
 
   const handleWaitlistSuccess = () => {
-    setToastMessage("✅ Εγγράφηκες στη λίστα αναμονής!");
+    setToastMessage(t("booking.toasts.waitlistSuccess"));
   };
 
   return (
     <main className="max-w-3xl mx-auto p-6">
       <BookingProgress />
-      <h1 className="text-2xl font-semibold">Select a date</h1>
-      <p className="text-neutral-600">Service selected: {serviceId ? serviceId : "(none)"}</p>
+      <h1 className="text-2xl font-semibold">{t("bookPages.selectDate")}</h1>
+      <p className="text-neutral-600">
+        {t("bookPages.serviceSelected", { service: serviceId ? serviceId : t("bookPages.none") })}
+      </p>
       <div className="mt-3">
-        <span className="text-sm">Date</span>
+        <span className="text-sm">{t("bookPages.dateLabel")}</span>
         <div className="mt-2">
           <Calendar
             value={date}
@@ -101,7 +105,7 @@ function BookDateInner() {
               onSuccess: handleWaitlistSuccess,
             }}
           />
-          {loadingHints && <p className="text-xs text-neutral-400 mt-2">Checking availability…</p>}
+          {loadingHints && <p className="text-xs text-neutral-400 mt-2">{t("bookPages.checkingAvailability")}</p>}
         </div>
       </div>
       <div className="mt-4">
@@ -112,7 +116,7 @@ function BookDateInner() {
             !serviceId || !date ? "bg-neutral-400 cursor-not-allowed" : "bg-black hover:bg-neutral-800"
           }`}
         >
-          Continue
+          {t("bookPages.continue")}
         </Link>
       </div>
       {toastMessage && (
@@ -128,9 +132,19 @@ function BookDateInner() {
   );
 }
 
+function BookDateFallback() {
+  const { t } = useLanguage();
+  return (
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-semibold">{t("bookPages.selectDate")}</h1>
+      <p className="text-neutral-600">{t("bookPages.loading")}</p>
+    </main>
+  );
+}
+
 export default function BookDatePage() {
   return (
-    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Select a date</h1><p className="text-neutral-600">Loading…</p></main>}>
+    <Suspense fallback={<BookDateFallback />}>
       <BookDateInner />
     </Suspense>
   );

@@ -4,6 +4,7 @@ import AuthProvider from "../components/AuthProvider";
 import AuthModal from "../components/AuthModal";
 import ProfilePanel from "../components/ProfilePanel";
 import BarberSettingsModal from "../components/BarberSettingsModal";
+import LanguageProvider from "../components/LanguageProvider";
 import "./globals.css";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -41,15 +42,17 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html suppressHydrationWarning lang="en">
+    <html suppressHydrationWarning lang="el">
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${graffiti.variable} antialiased`}>
-        <AuthProvider>
-          <BookingSSRProvider />
-          {children}
-          <AuthModal />
-          <ProfilePanel />
-          <BarberSettingsModal />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <BookingSSRProvider />
+            {children}
+            <AuthModal />
+            <ProfilePanel />
+            <BarberSettingsModal />
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

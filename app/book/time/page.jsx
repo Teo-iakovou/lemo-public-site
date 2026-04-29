@@ -5,12 +5,14 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAvailability } from "../../../lib/api";
 import BookingProgress from "../../../components/BookingProgress";
+import { useLanguage } from "../../../components/LanguageProvider";
 
 function BookTimeInner() {
   const search = useSearchParams();
   const serviceId = search.get("serviceId") || "";
   const date = search.get("date") || "";
   const barberId = (search.get("barberId") || "").toLowerCase();
+  const { t } = useLanguage();
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ function BookTimeInner() {
         const arr = Array.isArray(data) ? data : data?.slots || [];
         setSlots(arr);
       })
-      .catch((e) => setError(e.message || "Failed to load availability"))
+      .catch((e) => setError(e.message || t("common.error")))
       .finally(() => setLoading(false));
     return () => {
       mounted = false;
@@ -68,11 +70,14 @@ function BookTimeInner() {
   return (
     <main className="max-w-3xl mx-auto p-6">
       <BookingProgress />
-      <h1 className="text-2xl font-semibold">Επιλέξτε ώρα</h1>
+      <h1 className="text-2xl font-semibold">{t("bookPages.selectTime")}</h1>
       <p className="text-neutral-600">
-        Υπηρεσία: {serviceId || "(καμία)"} • Ημερομηνία: {date || "(καμία)"} • Διάρκεια: 40′
+        {t("bookPages.serviceDateDuration", {
+          service: serviceId || t("bookPages.none"),
+          date: date || t("bookPages.none"),
+        })}
       </p>
-      {loading && <p className="mt-2">Φόρτωση διαθέσιμων ωρών…</p>}
+      {loading && <p className="mt-2">{t("bookPages.loadingTimes")}</p>}
       {error && <p className="mt-2 text-red-600">{error}</p>}
       <div className="flex gap-2 flex-wrap mt-3">
         {slots.map((t) => {
@@ -91,16 +96,26 @@ function BookTimeInner() {
       </div>
       <div className="mt-4">
         <Link href={backHref} className="underline">
-          Πίσω
+          {t("bookPages.back")}
         </Link>
       </div>
     </main>
   );
 }
 
+function BookTimeFallback() {
+  const { t } = useLanguage();
+  return (
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-semibold">{t("bookPages.selectTime")}</h1>
+      <p className="text-neutral-600">{t("bookPages.loading")}</p>
+    </main>
+  );
+}
+
 export default function BookTimePage() {
   return (
-    <Suspense fallback={<main className="max-w-3xl mx-auto p-6"><h1 className="text-2xl font-semibold">Επιλέξτε ώρα</h1><p className="text-neutral-600">Φόρτωση…</p></main>}>
+    <Suspense fallback={<BookTimeFallback />}>
       <BookTimeInner />
     </Suspense>
   );

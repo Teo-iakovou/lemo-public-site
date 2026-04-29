@@ -2,8 +2,10 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLanguage } from "../../components/LanguageProvider";
 
 function SuccessContent() {
+  const { t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
@@ -17,9 +19,9 @@ function SuccessContent() {
 
   const bannerText = useMemo(() => {
     return isUpdate
-      ? "Your appointment was updated successfully."
-      : "Your appointment was created successfully.";
-  }, [isUpdate]);
+      ? t("success.updated")
+      : t("success.created");
+  }, [isUpdate, t]);
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -31,7 +33,7 @@ function SuccessContent() {
             </svg>
             <div className="text-sm leading-6">
               <div className="font-medium text-green-300">
-                {isUpdate ? "Appointment updated" : "Appointment created"}
+                {isUpdate ? t("success.updatedTitle") : t("success.createdTitle")}
               </div>
               <div className="opacity-90">{bannerText}</div>
             </div>
@@ -39,8 +41,8 @@ function SuccessContent() {
               type="button"
               onClick={() => setShowBanner(false)}
               className="ml-auto -mr-1 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-white/10"
-              aria-label="Dismiss notification"
-              title="Dismiss"
+              aria-label={t("success.dismiss")}
+              title={t("success.dismissShort")}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414Z" clipRule="evenodd" />
@@ -51,7 +53,7 @@ function SuccessContent() {
       )}
 
       <h1 className="text-2xl font-semibold mt-6">
-        {isUpdate ? "Appointment updated" : "Appointment created"}
+        {isUpdate ? t("success.updatedTitle") : t("success.createdTitle")}
       </h1>
       <p className="text-neutral-300 mt-1">{bannerText}</p>
 
@@ -60,14 +62,14 @@ function SuccessContent() {
           className="btn btn-primary"
           onClick={() => router.push("/")}
         >
-          Back to home
+          {t("success.backHome")}
         </button>
         <a
           className="btn btn-outline"
           href="https://www.instagram.com/lemobarbershop?igsh=enh6M2J4OHdlaGg3"
           target="_blank" rel="noopener noreferrer"
         >
-          Contact us
+          {t("success.contactUs")}
         </a>
       </div>
     </main>
@@ -75,8 +77,9 @@ function SuccessContent() {
 }
 
 export default function SuccessPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<main className="max-w-3xl mx-auto p-6 text-white/70">Loading…</main>}>
+    <Suspense fallback={<main className="max-w-3xl mx-auto p-6 text-white/70">{t("success.loading")}</main>}>
       <SuccessContent />
     </Suspense>
   );
