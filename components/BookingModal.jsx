@@ -97,7 +97,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const editPrefilledRef = useRef(false);
 
   // UI-only per-barber prices (EUR)
-  const PRICES = { lemo: 15, forou: 10 };
+  const PRICES = { lemo: 15, forou: 15 };
   function formatEuro(v) {
     try {
       return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
