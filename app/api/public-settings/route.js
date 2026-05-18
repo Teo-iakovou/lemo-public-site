@@ -6,7 +6,9 @@ import { normalizePublicSettings, DEFAULT_PUBLIC_SETTINGS } from "../../../lib/p
 
 const emptySettings = {
   closedMonths: [],
+  barberClosedMonths: {},
   blockedDates: [],
+  barberBlockedDates: {},
   allowedDates: [],
   specialDayHours: {},
   extraDaySlots: {},

@@ -1,5 +1,6 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../../lib/config";
 import { fetchPublicSettingsServer } from "../../../../lib/publicSettingsServer";
+import { resolveScopedList, toBarberSettingsKey } from "../../../../lib/publicSettings";
 
 export const runtime = 'nodejs';
 // Always compute fresh; disable framework-level caching for this route
@@ -59,15 +60,28 @@ export async function GET(request) {
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
   const explicitBarber = searchParams.get("barber") || "";
   const greekBarber =
-    barberId === "lemo" ? "ΛΕΜΟ" : barberId === "forou" ? "ΦΟΡΟΥ" : explicitBarber;
+    barberId === "lemo"
+      ? "ΛΕΜΟ"
+      : barberId === "forou"
+      ? "ΦΟΡΟΥ"
+      : barberId === "koushis"
+      ? "ΚΟΥΣΙΗΣ"
+      : explicitBarber;
   const normalizedKey =
-    barberId || (greekBarber === "ΛΕΜΟ" ? "lemo" : greekBarber === "ΦΟΡΟΥ" ? "forou" : "");
+    barberId ||
+    (greekBarber === "ΛΕΜΟ"
+      ? "lemo"
+      : greekBarber === "ΦΟΡΟΥ"
+      ? "forou"
+      : greekBarber === "ΚΟΥΣΙΗΣ"
+      ? "koushis"
+      : "");
   // const serviceId = searchParams.get("serviceId"); // reserved
 
   if (!start) return Response.json({}, { status: 200 });
   if (!greekBarber) {
     return Response.json(
-      { error: "Missing barber. Provide barberId=lemo|forou or barber=ΛΕΜΟ|ΦΟΡΟΥ." },
+      { error: "Missing barber. Provide barberId=lemo|forou|koushis or barber=ΛΕΜΟ|ΦΟΡΟΥ|ΚΟΥΣΙΗΣ." },
       { status: 400 }
     );
   }
@@ -104,7 +118,13 @@ export async function GET(request) {
         const data = await res.json();
         const payload = data && data.counts ? data : { counts: data };
         const settings = await fetchPublicSettingsServer();
-        const adjusted = applyManualOverlay(payload, startDate, endDate, settings);
+        const adjusted = applyManualOverlay(
+          payload,
+          startDate,
+          endDate,
+          settings,
+          toBarberSettingsKey(barberId || greekBarber)
+        );
         if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: adjusted });
         return Response.json(adjusted, { status: 200, headers: cacheHeaders });
       }
@@ -114,16 +134,26 @@ export async function GET(request) {
   // Fallback: return empty payload rather than recomputing heavy logic
   const empty = { counts: {} };
   const settings = await fetchPublicSettingsServer();
-  const adjustedEmpty = applyManualOverlay(empty, startDate, endDate, settings);
+  const adjustedEmpty = applyManualOverlay(
+    empty,
+    startDate,
+    endDate,
+    settings,
+    toBarberSettingsKey(barberId || greekBarber)
+  );
   if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), data: adjustedEmpty });
   return Response.json(adjustedEmpty, { status: 200, headers: cacheHeaders });
 }
 
-function applyManualOverlay(payload, startDate, endDate, settings) {
+function applyManualOverlay(payload, startDate, endDate, settings, barberKey) {
   const counts = { ...(payload.counts || {}) };
   const slots = payload.slots ? { ...(payload.slots || {}) } : undefined;
-  const blockedDatesSet = new Set(settings.blockedDates || []);
-  const closedMonthsSet = new Set(settings.closedMonths || []);
+  const blockedDatesSet = new Set(
+    resolveScopedList(settings, "barberBlockedDates", "blockedDates", barberKey)
+  );
+  const closedMonthsSet = new Set(
+    resolveScopedList(settings, "barberClosedMonths", "closedMonths", barberKey)
+  );
   const manualOpenDatesSet = new Set();
   (settings.allowedDates || []).forEach((ds) => manualOpenDatesSet.add(ds));
   Object.keys(settings.specialDayHours || {}).forEach((ds) => manualOpenDatesSet.add(ds));

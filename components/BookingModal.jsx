@@ -14,7 +14,12 @@ import {
   getPublicSettings,
   rescheduleAppointment,
 } from "../lib/api";
-import { DEFAULT_PUBLIC_SETTINGS, VISIBLE_MONTH_LIMITS } from "../lib/publicSettings";
+import {
+  DEFAULT_PUBLIC_SETTINGS,
+  VISIBLE_MONTH_LIMITS,
+  resolveScopedList,
+  toBarberSettingsKey,
+} from "../lib/publicSettings";
 import { useAuth } from "./AuthProvider";
 import { useLanguage } from "./LanguageProvider";
 import { mapCommonErrorMessage } from "../lib/i18n";
@@ -182,13 +187,33 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const maxDate = `${endOfVisibleRange.getFullYear()}-${String(
     endOfVisibleRange.getMonth() + 1
   ).padStart(2, "0")}-${String(endOfVisibleRange.getDate()).padStart(2, "0")}`;
+  const selectedBarberKey = useMemo(
+    () => toBarberSettingsKey(toBarberId(barber) || barber),
+    [barber]
+  );
   const closedMonthsSet = useMemo(
-    () => new Set(Array.isArray(publicSettings.closedMonths) ? publicSettings.closedMonths : []),
-    [publicSettings.closedMonths]
+    () =>
+      new Set(
+        resolveScopedList(
+          publicSettings,
+          "barberClosedMonths",
+          "closedMonths",
+          selectedBarberKey
+        )
+      ),
+    [publicSettings, selectedBarberKey]
   );
   const blockedDatesSet = useMemo(
-    () => new Set(publicSettings.blockedDates || []),
-    [publicSettings.blockedDates]
+    () =>
+      new Set(
+        resolveScopedList(
+          publicSettings,
+          "barberBlockedDates",
+          "blockedDates",
+          selectedBarberKey
+        )
+      ),
+    [publicSettings, selectedBarberKey]
   );
   const allowedDatesSet = useMemo(
     () => new Set(publicSettings.allowedDates || []),
@@ -248,6 +273,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     if (!id) return "";
     if (id === "Lemo") return "lemo";
     if (id === "Forou") return "forou";
+    if (id === "Koushis") return "koushis";
     return String(id).toLowerCase();
   }
 

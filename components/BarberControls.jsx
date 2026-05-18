@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Calendar from "./Calendar";
 import { getPublicSettings, updatePublicSettings } from "../lib/api";
 import {
+  BARBER_KEYS,
   DEFAULT_PUBLIC_SETTINGS,
   normalizePublicSettings,
+  resolveScopedList,
   VISIBLE_MONTH_LIMITS,
 } from "../lib/publicSettings";
 
@@ -136,6 +138,7 @@ function generateStandardSlotsForDate(value) {
 }
 
 export default function BarberControls() {
+  const [selectedBarberKey, setSelectedBarberKey] = useState("LEMO");
   const [settings, setSettings] = useState(DEFAULT_PUBLIC_SETTINGS);
   const [initialSettings, setInitialSettings] = useState(
     DEFAULT_PUBLIC_SETTINGS
@@ -260,6 +263,27 @@ export default function BarberControls() {
     }
   }, []);
 
+  const scopedClosedMonths = useMemo(
+    () =>
+      resolveScopedList(
+        settings,
+        "barberClosedMonths",
+        "closedMonths",
+        selectedBarberKey
+      ),
+    [settings, selectedBarberKey]
+  );
+  const scopedBlockedDates = useMemo(
+    () =>
+      resolveScopedList(
+        settings,
+        "barberBlockedDates",
+        "blockedDates",
+        selectedBarberKey
+      ),
+    [settings, selectedBarberKey]
+  );
+
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
@@ -298,7 +322,13 @@ export default function BarberControls() {
 
   const toggleMonth = (index) => {
     setSettings((prev) => {
-      const set = new Set(prev.closedMonths);
+      const current = resolveScopedList(
+        prev,
+        "barberClosedMonths",
+        "closedMonths",
+        selectedBarberKey
+      );
+      const set = new Set(current);
       if (set.has(index)) {
         set.delete(index);
       } else {
@@ -306,19 +336,36 @@ export default function BarberControls() {
       }
       return {
         ...prev,
-        closedMonths: Array.from(set).sort((a, b) => a - b),
+        barberClosedMonths: {
+          ...(prev.barberClosedMonths || {}),
+          [selectedBarberKey]: Array.from(set).sort((a, b) => a - b),
+        },
       };
     });
   };
 
   const removeDate = (type, value) => {
     setSettings((prev) => {
-      const key = type === "allowed" ? "allowedDates" : "blockedDates";
+      if (type === "blocked") {
+        const current = resolveScopedList(
+          prev,
+          "barberBlockedDates",
+          "blockedDates",
+          selectedBarberKey
+        );
+        return {
+          ...prev,
+          barberBlockedDates: {
+            ...(prev.barberBlockedDates || {}),
+            [selectedBarberKey]: current.filter((d) => d !== value),
+          },
+        };
+      }
       const next = {
         ...prev,
-        [key]: prev[key].filter((d) => d !== value),
+        allowedDates: prev.allowedDates.filter((d) => d !== value),
       };
-      if (key === "allowedDates" && next.specialDayHours?.[value]) {
+      if (next.specialDayHours?.[value]) {
         const copy = { ...(next.specialDayHours || {}) };
         delete copy[value];
         next.specialDayHours = copy;
@@ -346,9 +393,21 @@ export default function BarberControls() {
       return;
     }
     setSettings((prev) => {
-      const set = new Set(prev.blockedDates);
+      const current = resolveScopedList(
+        prev,
+        "barberBlockedDates",
+        "blockedDates",
+        selectedBarberKey
+      );
+      const set = new Set(current);
       set.add(lockDate);
-      return { ...prev, blockedDates: Array.from(set).sort() };
+      return {
+        ...prev,
+        barberBlockedDates: {
+          ...(prev.barberBlockedDates || {}),
+          [selectedBarberKey]: Array.from(set).sort(),
+        },
+      };
     });
     setSuccess(`Ημέρα ${formatLongDate(lockDate)} έκλεισε.`);
   };
@@ -451,10 +510,14 @@ export default function BarberControls() {
         (initialSettings.visibleMonthCount || DEFAULT_PUBLIC_SETTINGS.visibleMonthCount) ||
       JSON.stringify(settings.closedMonths) !==
         JSON.stringify(initialSettings.closedMonths) ||
+      JSON.stringify(settings.barberClosedMonths || {}) !==
+        JSON.stringify(initialSettings.barberClosedMonths || {}) ||
       JSON.stringify(settings.allowedDates) !==
         JSON.stringify(initialSettings.allowedDates) ||
       JSON.stringify(settings.blockedDates) !==
         JSON.stringify(initialSettings.blockedDates) ||
+      JSON.stringify(settings.barberBlockedDates || {}) !==
+        JSON.stringify(initialSettings.barberBlockedDates || {}) ||
       JSON.stringify(settings.specialDayHours || {}) !==
         JSON.stringify(initialSettings.specialDayHours || {}) ||
       JSON.stringify(settings.extraDaySlots || {}) !==
@@ -494,6 +557,20 @@ export default function BarberControls() {
         <p className="mt-1 text-sm text-white/70">
           Επιλέξτε πόσους μήνες μπροστά βλέπουν οι πελάτες. Ο τρέχων μήνας μετράει ως ο πρώτος.
         </p>
+        <div className="mt-3 flex items-center gap-3">
+          <label className="text-xs uppercase tracking-wide text-white/60">Κουρέας</label>
+          <select
+            value={selectedBarberKey}
+            onChange={(e) => setSelectedBarberKey(e.target.value)}
+            className="rounded-lg border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white focus:border-emerald-300 focus:outline-none"
+          >
+            {BARBER_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {key === "LEMO" ? "ΛΕΜΟ" : key === "FOROU" ? "ΦΟΡΟΥ" : "ΚΟΥΣΙΗΣ"}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {VISIBLE_MONTH_CHOICES.map((count) => {
             const active =
@@ -531,7 +608,7 @@ export default function BarberControls() {
           <div>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {MONTH_LABELS.map((label, idx) => {
-                const active = settings.closedMonths.includes(idx);
+                const active = scopedClosedMonths.includes(idx);
                 return (
                   <button
                     key={label}
@@ -576,11 +653,11 @@ export default function BarberControls() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-sm font-semibold mb-2">Ημέρες που είναι κλειστές</p>
-              {settings.blockedDates.length === 0 ? (
+              {scopedBlockedDates.length === 0 ? (
                 <p className="text-xs text-white/50">Καμία επιπλέον κλειστή ημέρα.</p>
               ) : (
                 <ul className="space-y-2 text-sm">
-                  {settings.blockedDates.map((date) => (
+                  {scopedBlockedDates.map((date) => (
                     <li
                       key={date}
                       className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2"

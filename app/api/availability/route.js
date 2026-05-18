@@ -1,5 +1,6 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
 import { fetchPublicSettingsServer } from "../../../lib/publicSettingsServer";
+import { resolveScopedList, toBarberSettingsKey } from "../../../lib/publicSettings";
 
 export const runtime = 'nodejs';
 // Always compute fresh; disable framework-level caching for this route
@@ -105,7 +106,13 @@ export async function GET(request) {
   const barberId = (searchParams.get("barberId") || "").toLowerCase();
   const explicitBarber = searchParams.get("barber") || "";
   const barberRaw =
-    barberId === "lemo" ? "ΛΕΜΟ" : barberId === "forou" ? "ΦΟΡΟΥ" : explicitBarber;
+    barberId === "lemo"
+      ? "ΛΕΜΟ"
+      : barberId === "forou"
+      ? "ΦΟΡΟΥ"
+      : barberId === "koushis"
+      ? "ΚΟΥΣΙΗΣ"
+      : explicitBarber;
   // Normalize to Greek lowercase for local comparisons (matches backend data)
   const greekLower = barberId === 'lemo' ? 'λεμο' : barberId === 'forou' ? 'φορου' : (barberRaw || '').toLowerCase();
   if (debugMode) {
@@ -123,7 +130,7 @@ export async function GET(request) {
 
   if (!barberRaw) {
     return Response.json(
-      { error: "Missing barber. Provide barberId=lemo|forou or barber=ΛΕΜΟ|ΦΟΡΟΥ." },
+      { error: "Missing barber. Provide barberId=lemo|forou|koushis or barber=ΛΕΜΟ|ΦΟΡΟΥ|ΚΟΥΣΙΗΣ." },
       { status: 400, headers: cacheHeaders }
     );
   }
@@ -133,8 +140,13 @@ export async function GET(request) {
   const step = 40; // grid step in minutes (appointments every 40')
 
   const settings = await fetchPublicSettingsServer();
-  const blockedDatesSet = new Set(settings.blockedDates || []);
-  const closedMonthsSet = new Set(settings.closedMonths || []);
+  const scopedBarberKey = toBarberSettingsKey(barberId || barberRaw);
+  const blockedDatesSet = new Set(
+    resolveScopedList(settings, "barberBlockedDates", "blockedDates", scopedBarberKey)
+  );
+  const closedMonthsSet = new Set(
+    resolveScopedList(settings, "barberClosedMonths", "closedMonths", scopedBarberKey)
+  );
   const allowedDatesSet = new Set(settings.allowedDates || []);
   const whitelistDatesSet = new Set(Object.keys(settings.specialDayHours || {}));
   const extraDatesSet = new Set(Object.keys(settings.extraDaySlots || {}));
