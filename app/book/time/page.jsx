@@ -23,7 +23,14 @@ function BookTimeInner() {
       if (!date) return;
       const w = typeof window !== 'undefined' ? window.__BOOKING_INITIAL : null;
       if (!w) return;
-      const key = barberId === 'lemo' ? 'LEMO' : barberId === 'forou' ? 'FOROU' : null;
+      const key =
+        barberId === "lemo"
+          ? "LEMO"
+          : barberId === "forou"
+          ? "FOROU"
+          : barberId === "koushis"
+          ? "KOUSHIS"
+          : null;
       if (!key) return;
       const pack = w[key];
       const bundles = [];

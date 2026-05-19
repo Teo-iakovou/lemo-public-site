@@ -53,6 +53,7 @@ export default function WaitlistModal({
       { value: "", label: t("waitlist.anyBarber") },
       { value: "lemo", label: t("booking.barberNames.lemoUpper") },
       { value: "forou", label: t("booking.barberNames.forouUpper") },
+      { value: "koushis", label: t("booking.barberNames.koushisUpper") },
     ],
     [t]
   );

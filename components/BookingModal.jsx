@@ -61,6 +61,7 @@ function fromGreekBarberName(value = "") {
   const normalized = value.toString().trim().toUpperCase();
   if (normalized.includes("ΛΕΜ")) return "Lemo";
   if (normalized.includes("ΦΟΡ")) return "Forou";
+  if (normalized.includes("ΚΟΥΣ")) return "Koushis";
   return value;
 }
 
@@ -101,8 +102,16 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [editRequiresSelection, setEditRequiresSelection] = useState(false);
   const editPrefilledRef = useRef(false);
 
-  // UI-only per-barber prices (EUR)
-  const PRICES = { lemo: 15, forou: 15 };
+  // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
+  const PRICES = useMemo(() => {
+    const defaults = { lemo: 15, forou: 15, koushis: 15 };
+    const map = publicSettings?.barberPrices || {};
+    return {
+      lemo: Number.isFinite(Number(map.LEMO)) ? Number(map.LEMO) : defaults.lemo,
+      forou: Number.isFinite(Number(map.FOROU)) ? Number(map.FOROU) : defaults.forou,
+      koushis: Number.isFinite(Number(map.KOUSHIS)) ? Number(map.KOUSHIS) : defaults.koushis,
+    };
+  }, [publicSettings]);
   function formatEuro(v) {
     try {
       return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
@@ -267,6 +276,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     if (!id) return "";
     if (id === "Lemo") return t("booking.barberNames.lemoUpper");
     if (id === "Forou") return t("booking.barberNames.forouUpper");
+    if (id === "Koushis") return t("booking.barberNames.koushisUpper");
     return id;
   }
   function toBarberId(id) {
@@ -282,6 +292,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     if (!name) return "";
     if (name === "Lemo") return t("booking.barberNames.lemoUi");
     if (name === "Forou") return t("booking.barberNames.forouUi");
+    if (name === "Koushis") return t("booking.barberNames.koushisUi");
     return name;
   }
 
@@ -629,7 +640,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
       const initial = typeof window !== 'undefined' ? window.__BOOKING_INITIAL : null;
       try {
         if (initial) {
-          const key = barber === 'Lemo' ? 'LEMO' : 'FOROU';
+          const key =
+            barber === "Lemo" ? "LEMO" : barber === "Forou" ? "FOROU" : "KOUSHIS";
           const pack = initial[key];
           // Support both old (direct bundle) and new (current/next) shapes
           const bundles = [];
@@ -663,7 +675,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
       // If we don't yet have counts, block calendar and show spinner first
       setLoadingHints(true);
-      const initKey = barber === 'Lemo' ? 'LEMO' : 'FOROU';
+      const initKey =
+        barber === "Lemo" ? "LEMO" : barber === "Forou" ? "FOROU" : "KOUSHIS";
       const hasCounts = initial && (
         (initial[initKey]?.current && initial[initKey].current.counts) ||
         (initial[initKey]?.counts)
@@ -798,7 +811,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
           {!barber && (
             <div className="sm:col-span-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 place-items-center">
-                {[{ id: "Lemo", name: "Lemo" }, { id: "Forou", name: "Forou" }].map((b) => (
+                {[
+                  { id: "Lemo", name: "Lemo", image: "/DSC_0275.JPG" },
+                  { id: "Forou", name: "Forou", image: "/DSC_0262.JPG" },
+                  { id: "Koushis", name: "Koushis", image: "/320B6176-236C-4761-BD3A-5C42BB1B7F70_1_102_o.jpeg" },
+                ].map((b) => (
                   <button
                     key={b.id}
                     type="button"
@@ -808,7 +825,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     <div className={"relative h-36 w-36 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
                     >
                       <Image
-                        src={b.id === 'Lemo' ? '/DSC_0275.JPG' : '/DSC_0262.JPG'}
+                        src={b.image}
                         alt={b.name}
                         fill
                         priority

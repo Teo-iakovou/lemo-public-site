@@ -139,6 +139,7 @@ function generateStandardSlotsForDate(value) {
 
 export default function BarberControls() {
   const [selectedBarberKey, setSelectedBarberKey] = useState("LEMO");
+  const [barberPriceDraft, setBarberPriceDraft] = useState("15");
   const [settings, setSettings] = useState(DEFAULT_PUBLIC_SETTINGS);
   const [initialSettings, setInitialSettings] = useState(
     DEFAULT_PUBLIC_SETTINGS
@@ -283,6 +284,14 @@ export default function BarberControls() {
       ),
     [settings, selectedBarberKey]
   );
+  const selectedBarberPrice = useMemo(() => {
+    const raw = settings?.barberPrices?.[selectedBarberKey];
+    return Number.isFinite(Number(raw)) ? Number(raw) : 15;
+  }, [settings, selectedBarberKey]);
+
+  useEffect(() => {
+    setBarberPriceDraft(String(selectedBarberPrice));
+  }, [selectedBarberPrice]);
 
   useEffect(() => {
     loadSettings();
@@ -453,6 +462,22 @@ export default function BarberControls() {
     }
   };
 
+  const applyBarberPrice = useCallback(() => {
+    const next = Number(barberPriceDraft);
+    if (!Number.isFinite(next) || next < 0) {
+      setError("Μη έγκυρη τιμή. Βάλτε αριθμό >= 0.");
+      return;
+    }
+    setSettings((prev) => ({
+      ...prev,
+      barberPrices: {
+        ...(prev.barberPrices || {}),
+        [selectedBarberKey]: Math.round(next * 100) / 100,
+      },
+    }));
+    setSuccess("Η τιμή ενημερώθηκε.");
+  }, [barberPriceDraft, selectedBarberKey]);
+
   const saveWhitelist = () => {
     if (!whitelistDate) {
       setError("Επιλέξτε ημερομηνία για whitelist.");
@@ -518,6 +543,8 @@ export default function BarberControls() {
         JSON.stringify(initialSettings.blockedDates) ||
       JSON.stringify(settings.barberBlockedDates || {}) !==
         JSON.stringify(initialSettings.barberBlockedDates || {}) ||
+      JSON.stringify(settings.barberPrices || {}) !==
+        JSON.stringify(initialSettings.barberPrices || {}) ||
       JSON.stringify(settings.specialDayHours || {}) !==
         JSON.stringify(initialSettings.specialDayHours || {}) ||
       JSON.stringify(settings.extraDaySlots || {}) !==
@@ -570,6 +597,24 @@ export default function BarberControls() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="text-xs uppercase tracking-wide text-white/60">Τιμή ({selectedBarberKey})</label>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={barberPriceDraft}
+            onChange={(e) => setBarberPriceDraft(e.target.value)}
+            className="w-28 rounded-lg border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white focus:border-emerald-300 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={applyBarberPrice}
+            className="rounded-lg border border-white/25 px-3 py-1.5 text-xs text-white/80 hover:border-white/50 hover:text-white"
+          >
+            Εφαρμογή
+          </button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {VISIBLE_MONTH_CHOICES.map((count) => {

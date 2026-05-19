@@ -20,11 +20,13 @@ export default async function BookingSSRProvider() {
   const next = new Date(now.getFullYear(), now.getMonth()+1, 1);
   const nextMonthStart = toMonthStart(next);
 
-  const [lemoCurr, forouCurr, lemoNext, forouNext] = await Promise.all([
+  const [lemoCurr, forouCurr, koushisCurr, lemoNext, forouNext, koushisNext] = await Promise.all([
     fetchMonth(monthStart, 'lemo').catch(()=>null),
     fetchMonth(monthStart, 'forou').catch(()=>null),
+    fetchMonth(monthStart, 'koushis').catch(()=>null),
     fetchMonth(nextMonthStart, 'lemo').catch(()=>null),
     fetchMonth(nextMonthStart, 'forou').catch(()=>null),
+    fetchMonth(nextMonthStart, 'koushis').catch(()=>null),
   ]);
 
   const initial = {
@@ -32,6 +34,7 @@ export default async function BookingSSRProvider() {
     nextMonthStart,
     LEMO: { current: lemoCurr || null, next: lemoNext || null },
     FOROU: { current: forouCurr || null, next: forouNext || null },
+    KOUSHIS: { current: koushisCurr || null, next: koushisNext || null },
   };
   const json = JSON.stringify(initial).replace(/</g, '\\u003c');
   return (
