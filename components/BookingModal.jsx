@@ -104,12 +104,13 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
   const PRICES = useMemo(() => {
-    const defaults = { lemo: 15, forou: 15, koushis: 15 };
+    const defaults = { lemo: 15, forou: 15 };
     const map = publicSettings?.barberPrices || {};
     return {
       lemo: Number.isFinite(Number(map.LEMO)) ? Number(map.LEMO) : defaults.lemo,
       forou: Number.isFinite(Number(map.FOROU)) ? Number(map.FOROU) : defaults.forou,
-      koushis: Number.isFinite(Number(map.KOUSHIS)) ? Number(map.KOUSHIS) : defaults.koushis,
+      // Koushis price is intentionally hidden for now.
+      koushis: null,
     };
   }, [publicSettings]);
   function formatEuro(v) {
@@ -836,9 +837,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     </div>
                     <div className="h-px w-11/12 my-2 sm:my-2 bg-white/15" />
                     <div className="font-extrabold tracking-wide uppercase text-sm">{b.name}</div>
-                    <div className="text-xs sm:text-sm text-white/80 mt-1">
-                      {formatEuro(PRICES[toBarberId(b.id)])}
-                    </div>
+                    {Number.isFinite(PRICES[toBarberId(b.id)]) && (
+                      <div className="text-xs sm:text-sm text-white/80 mt-1">
+                        {formatEuro(PRICES[toBarberId(b.id)])}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1088,7 +1091,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                 <div>
                   <span className="text-neutral-400">{t("booking.labels.service")}</span> {services[0]?.name || t("booking.labels.defaultService")}
                   {barber && (
-                    <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
+                    {Number.isFinite(PRICES[toBarberId(barber)]) && (
+                      <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
+                    )}
                   )}
                 </div>
               </div>
