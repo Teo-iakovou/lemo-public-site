@@ -1091,9 +1091,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                 <div>
                   <span className="text-neutral-400">{t("booking.labels.service")}</span> {services[0]?.name || t("booking.labels.defaultService")}
                   {barber && (
-                    {Number.isFinite(PRICES[toBarberId(barber)]) && (
+                    Number.isFinite(PRICES[toBarberId(barber)]) && (
                       <span className="ml-2 text-neutral-200">— {formatEuro(PRICES[toBarberId(barber)])}</span>
-                    )}
+                    )
                   )}
                 </div>
               </div>
