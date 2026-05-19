@@ -395,6 +395,8 @@ export default function ProfilePanel() {
                                     if (!dobMonthStepDone) changeMonth(0);
                                     setDobCalendarViewDate(new Date(nextYear, dobMonthStepDone ? selectedMonth : 0, 1));
                                     setDobYearStepDone(true);
+                                    // If January is auto-set after choosing year, treat month step as completed.
+                                    if (!dobMonthStepDone) setDobMonthStepDone(true);
                                   }}
                                   className="h-9 rounded-md border border-white/25 bg-black/40 px-2 text-xs text-white"
                                   disabled={savingDob}
