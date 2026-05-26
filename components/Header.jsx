@@ -45,7 +45,7 @@ export default function Header() {
 
         <Link
           href="/"
-          className="sm:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display font-graffiti text-2xl tracking-wide"
+          className="sm:hidden font-display font-graffiti text-2xl tracking-wide mr-auto"
           aria-label="LEMO"
         >
           {Array.from("LEMO").map((ch, i) => (
@@ -55,7 +55,7 @@ export default function Header() {
           ))}
         </Link>
 
-        <div className="flex justify-end flex-1 sm:flex-none sm:relative gap-2">
+        <div className="flex justify-end sm:flex-none sm:relative gap-2">
           <div className="inline-flex items-center rounded-full border border-white/15 bg-white/5 p-0.5">
             <button
               type="button"
