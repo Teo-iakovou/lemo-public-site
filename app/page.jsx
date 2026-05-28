@@ -48,10 +48,9 @@ export default function Home() {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }
   }, []);
-  const ADDRESS = "Lemo Barber Shop (MXQ4+7J Ύψωνας, Κύπρος)";
-  const MAPS_EMBED = `https://www.google.com/maps?q=${encodeURIComponent(ADDRESS)}&z=16&output=embed`;
-  const MAPS_URL =
-    "https://www.google.com/maps/place/Lemo+Barber+Shop/@34.6882371,32.9540037,17z/data=!3m1!4b1!4m6!3m5!1s0x14e73166eb7c34f9:0x765fcbab2e6fed5b!8m2!3d34.6882327!4d32.9565786!16s%2Fg%2F11ml9hpzfn?entry=ttu";
+  const MAP_COORDS = "34.688222,32.956536";
+  const MAPS_EMBED = `https://www.google.com/maps?q=${encodeURIComponent(MAP_COORDS)}&z=16&output=embed`;
+  const MAPS_URL = `https://www.google.com/maps?q=${encodeURIComponent(MAP_COORDS)}`;
   // Public asset hero image (placed in public/)
   const HERO_URL = "/FFF725C7-B78F-4BCC-A8E4-9DAB7FC156C0.JPG";
   return (
