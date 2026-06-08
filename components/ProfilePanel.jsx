@@ -547,7 +547,7 @@ export default function ProfilePanel() {
                             : "border-white/20 text-white hover:bg-white/5"
                         }`}
                       >
-                        {t("booking.buttons.confirmChanges")}
+                        {t("profile.actions.changeAppointment")}
                       </button>
                       <button
                         type="button"
@@ -555,7 +555,7 @@ export default function ProfilePanel() {
                         disabled={cancelingId === appt._id}
                         className="rounded border border-red-400 px-3 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50"
                       >
-                        {cancelingId === appt._id ? t("common.loading") : t("profile.messages.appointmentCancelled")}
+                        {cancelingId === appt._id ? t("common.loading") : t("profile.actions.cancelAppointment")}
                       </button>
                     </div>
                   )}

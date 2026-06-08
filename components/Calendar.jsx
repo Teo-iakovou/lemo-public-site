@@ -28,6 +28,7 @@ function endOfMonth(d) {
 
 export default function Calendar({
   value,
+  selectedDates = [],
   onChange,
   minDate,
   maxDate,
@@ -46,6 +47,10 @@ export default function Calendar({
     return t;
   }, []);
   const selected = value ? new Date(value + "T00:00:00") : null;
+  const selectedDatesSet = useMemo(
+    () => new Set(Array.isArray(selectedDates) ? selectedDates : []),
+    [selectedDates]
+  );
   const min = minDate ? new Date(minDate + "T00:00:00") : today;
   const max = maxDate ? new Date(maxDate + "T00:00:00") : addDays(today, 365);
 
@@ -228,7 +233,7 @@ export default function Calendar({
             const inMonth = d.getMonth() === cursor.getMonth();
             // Only allow days from the current month to be selectable/colored
             const inDisplay = inMonth;
-            const isSel = selected && toYMD(selected) === ds;
+            const isSel = (selected && toYMD(selected) === ds) || selectedDatesSet.has(ds);
             // Allow selecting days within current month only
             const manualOpen = allowedDatesSet.has(ds);
             const lockedBySettings = blockedDatesSet.has(ds);

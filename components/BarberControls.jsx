@@ -150,6 +150,7 @@ export default function BarberControls() {
   const [success, setSuccess] = useState("");
   const [openDate, setOpenDate] = useState("");
   const [lockDate, setLockDate] = useState("");
+  const [lockDates, setLockDates] = useState([]);
   const [whitelistDate, setWhitelistDate] = useState("");
   const [extraDate, setExtraDate] = useState("");
   const [overrideDraft, setOverrideDraft] = useState("");
@@ -397,8 +398,9 @@ export default function BarberControls() {
   };
 
   const handleLockDay = () => {
-    if (!lockDate) {
-      setError("Επιλέξτε ημερομηνία για κλείσιμο.");
+    const datesToLock = lockDates.length ? lockDates : lockDate ? [lockDate] : [];
+    if (!datesToLock.length) {
+      setError("Επιλέξτε τουλάχιστον μία ημερομηνία για κλείσιμο.");
       return;
     }
     setSettings((prev) => {
@@ -409,7 +411,7 @@ export default function BarberControls() {
         selectedBarberKey
       );
       const set = new Set(current);
-      set.add(lockDate);
+      datesToLock.forEach((date) => set.add(date));
       return {
         ...prev,
         barberBlockedDates: {
@@ -418,7 +420,13 @@ export default function BarberControls() {
         },
       };
     });
-    setSuccess(`Ημέρα ${formatLongDate(lockDate)} έκλεισε.`);
+    setSuccess(
+      datesToLock.length === 1
+        ? `Ημέρα ${formatLongDate(datesToLock[0])} έκλεισε.`
+        : `${datesToLock.length} ημέρες έκλεισαν.`
+    );
+    setLockDate("");
+    setLockDates([]);
   };
 
   const removeExtraSlot = useCallback((date, time) => {
@@ -564,7 +572,13 @@ export default function BarberControls() {
         break;
       case "lock":
         setLockDate(value);
-        break;
+        setLockDates((prev) => {
+          const set = new Set(prev);
+          if (set.has(value)) set.delete(value);
+          else set.add(value);
+          return Array.from(set).sort();
+        });
+        return;
       case "whitelist":
         setWhitelistDate(value);
         break;
@@ -791,7 +805,7 @@ export default function BarberControls() {
             <div>
               <p className="text-sm font-semibold">Κλείσιμο συγκεκριμένης ημέρας</p>
               <p className="text-xs text-white/60">
-                Μπορείς να αποκρύψεις μία μεμονωμένη ημέρα, ακόμη κι αν ολόκληρος ο μήνας είναι ενεργός.
+                Μπορείς να αποκρύψεις μία ή περισσότερες ημέρες, ακόμη κι αν ολόκληρος ο μήνας είναι ενεργός.
               </p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button
@@ -799,16 +813,46 @@ export default function BarberControls() {
                   onClick={() => openCalendarFor("lock", lockDate)}
                   className="flex-1 rounded-xl border border-white/20 bg-black/20 px-4 py-2 text-left text-sm hover:border-white/40"
                 >
-                  {lockDate ? formatLongDate(lockDate) : "Επιλέξτε ημέρα"}
+                  {lockDates.length
+                    ? `${lockDates.length} ημέρες επιλεγμένες`
+                    : lockDate
+                    ? formatLongDate(lockDate)
+                    : "Επιλέξτε ημέρες"}
                 </button>
                 <button
                   type="button"
                   onClick={handleLockDay}
                   className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20"
                 >
-                  Κλείσιμο ημέρας
+                  Κλείσιμο ημερών
                 </button>
               </div>
+              {lockDates.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {lockDates.map((date) => (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() =>
+                        setLockDates((prev) => prev.filter((item) => item !== date))
+                      }
+                      className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/80 hover:border-white/50"
+                    >
+                      {formatLongDate(date)} x
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLockDate("");
+                      setLockDates([]);
+                    }}
+                    className="rounded-full border border-rose-300/40 px-3 py-1 text-xs text-rose-100 hover:border-rose-200"
+                  >
+                    Καθαρισμός
+                  </button>
+                </div>
+              )}
             </div>
 
             {WHITELIST_ENABLED ? (
@@ -992,7 +1036,8 @@ export default function BarberControls() {
                 className="w-full max-w-md rounded-2xl border border-white/15 bg-black/95 p-3 shadow-2xl space-y-3"
               >
                 <Calendar
-                  value={calendarTemp || ""}
+                  value={calendarState.target === "lock" ? "" : calendarTemp || ""}
+                  selectedDates={calendarState.target === "lock" ? lockDates : []}
                   onChange={(ds) => {
                     setCalendarTemp(ds);
                     handleCalendarSelect(ds);
@@ -1006,6 +1051,20 @@ export default function BarberControls() {
                   allowedDates={[]}
                   onMonthChange={() => {}}
                 />
+                {calendarState.target === "lock" && lockDates.length > 0 && (
+                  <p className="text-center text-xs text-white/60">
+                    {lockDates.length} ημέρες επιλεγμένες
+                  </p>
+                )}
+                {calendarState.target === "lock" && (
+                  <button
+                    type="button"
+                    onClick={() => setCalendarState({ open: false, target: null })}
+                    className="w-full rounded-lg bg-white px-3 py-2 text-sm font-semibold text-black hover:bg-neutral-200"
+                  >
+                    Έτοιμο
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setCalendarState({ open: false, target: null })}
