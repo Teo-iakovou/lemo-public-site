@@ -2,9 +2,9 @@
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import MarqueeBanner from "../components/MarqueeBanner";
 import Reveal from "../components/Reveal";
 import BookingModal from "../components/BookingModal";
+import TeamShowcase from "../components/TeamShowcase";
 import { useCallback, useEffect, useState } from "react";
 import IntroOverlay from "../components/IntroOverlay";
 import { useAuth } from "../components/AuthProvider";
@@ -112,30 +112,8 @@ export default function Home() {
 
       {/* Removed standalone hours strip; merged later with booking CTA */}
 
-      {/* Services */}
-      <section id="services" className="section">
-        <Reveal as="div" className="container-xl">
-          <h2 className="font-display text-4xl mb-8">{t("home.servicesPrices")}</h2>
-          <div className="grid grid-cols-1 gap-6 max-w-md mx-auto">
-            {[
-              { name: t("home.haircut"), price: "€15" },
-            ].map((s) => (
-              <Reveal key={s.name} delay={100} className="p-6 border border-white/10 rounded-lg bg-white/5">
-                <div className="flex items-end justify-between">
-                  <h3 className="text-xl font-display">{s.name}</h3>
-                  <span className="text-lg">{s.price}</span>
-                </div>
-                <button onClick={handleOpenClick} className="inline-block mt-4 text-sm underline">{t("home.bookArrow")}</button>
-              </Reveal>
-            ))}
-          </div>
-        </Reveal>
-      </section>
-
-      {/* Interactive stripes banner */}
-      <Reveal as="div">
-        <MarqueeBanner />
-      </Reveal>
+      {/* Team (contains its own marquee divider) */}
+      <TeamShowcase />
 
       {/* Map */}
       <section id="location" className="section pt-0">

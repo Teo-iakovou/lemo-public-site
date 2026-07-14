@@ -37,7 +37,7 @@ export default function Header() {
         </div>
 
         <nav className="hidden sm:flex items-center justify-center gap-6 text-sm flex-1">
-            <Link href="#services" className="hover:opacity-80">{t("nav.services")}</Link>
+            <Link href="#team" className="hover:opacity-80">{t("nav.team")}</Link>
             <Link href="#booking-hours" className="hover:opacity-80">{t("nav.hours")}</Link>
             <Link href="#location" className="hover:opacity-80">{t("nav.location")}</Link>
             <Link href="#footer" className="hover:opacity-80">{t("nav.contact")}</Link>

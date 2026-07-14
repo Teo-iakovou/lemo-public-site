@@ -1,0 +1,69 @@
+/* TeamShowcase accordion transitions.
+   Declared as real CSS (a module) rather than Tailwind arbitrary-value classes,
+   so the timing is emitted deterministically and never depends on the JIT
+   scanner picking up concatenated class strings. Each rule transitions only the
+   property that actually changes between the collapsed/active states. */
+
+.panel {
+  transition:
+    flex-grow 1200ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Constant-size image wrapper. The panel (its positioned ancestor) grows via
+   flex/height, but this wrapper stays a FIXED size, so the image inside never
+   rescales — the panel's overflow-hidden just reveals more of it. That removes
+   the object-cover "zoom" during the expand.
+   Mobile: fixed height (= expanded height), full width, anchored to the top.
+   Desktop: fixed width, full height, horizontally centred. */
+.photoWrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Centre the natural-size image horizontally WITHOUT a transform, and anchor
+     it to the bottom, so the growing panel reveals it as a horizontal wipe. */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+/* Mobile: the panel HEIGHT animates, so pin the wrapper to a constant height
+   (bottom-anchored) — otherwise the image height (and subject) would change. */
+@media (max-width: 1023.98px) {
+  .photoWrap {
+    inset: auto 0 0 0;
+    height: 68vh;
+  }
+}
+
+/* Photo: sized by height (see inline style). ONLY grayscale/brightness (filter)
+   animates. It must never scale/zoom. */
+.photo {
+  transform: none;
+  transition: filter 1400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.veil {
+  transition: opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.label {
+  transition: opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Info block: fade + slide, settling ~200ms after the panel starts opening. */
+.info {
+  transition:
+    opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .photo,
+  .veil,
+  .label,
+  .info {
+    transition: none;
+  }
+}

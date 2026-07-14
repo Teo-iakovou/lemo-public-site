@@ -97,6 +97,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [waitlistToast, setWaitlistToast] = useState("");
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const bodyLockRef = useRef(null);
+  const confirmingRef = useRef(false);
   const { user } = useAuth();
   const [editContext, setEditContext] = useState(null);
   const [editRequiresSelection, setEditRequiresSelection] = useState(false);
@@ -743,6 +744,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   async function onConfirm() {
     if (!serviceId || !date || !time || !name || !phone) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     setSubmitting(true);
     setError("");
     try {
@@ -777,8 +780,14 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         router.push(`/success?${p.toString()}`);
       }
     } catch (e) {
-      setError(e.message || "Failed to complete request");
+      let msg = e.message || "Failed to complete request";
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.message) msg = parsed.message;
+      } catch {}
+      setError(msg);
     } finally {
+      confirmingRef.current = false;
       setSubmitting(false);
     }
   }

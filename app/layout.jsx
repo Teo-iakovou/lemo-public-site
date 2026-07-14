@@ -42,7 +42,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html suppressHydrationWarning lang="el">
+    <html suppressHydrationWarning lang="el" className="scroll-smooth">
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${graffiti.variable} antialiased`}>
         <LanguageProvider>
           <AuthProvider>
