@@ -342,7 +342,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // Preload barber images as soon as modal opens for instant paint
   useEffect(() => {
     if (!open) return;
-    ["/DSC_0275.JPG", "/DSC_0262.JPG"].forEach((src) => {
+    ["/team/lemo.jpg", "/team/forou.jpg", "/team/koushis.jpg"].forEach((src) => {
       try {
         const img = new Image();
         img.decoding = "async";
@@ -822,9 +822,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
             <div className="sm:col-span-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 place-items-center">
                 {[
-                  { id: "Lemo", name: "Lemo", image: "/DSC_0275.JPG" },
-                  { id: "Forou", name: "Forou", image: "/DSC_0262.JPG" },
-                  { id: "Koushis", name: "Koushis", image: "/320B6176-236C-4761-BD3A-5C42BB1B7F70_1_102_o.jpeg" },
+                  { id: "Lemo", name: "Lemo", image: "/team/lemo.jpg" },
+                  { id: "Forou", name: "Forou", image: "/team/forou.jpg" },
+                  { id: "Koushis", name: "Koushis", image: "/team/koushis.jpg" },
                 ].map((b) => (
                   <button
                     key={b.id}
@@ -841,7 +841,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         priority
                         fetchPriority="high"
                         sizes="(max-width: 640px) 176px, 192px"
-                        className={`object-cover object-center ${b.id === 'Forou' ? 'transform scale-110' : ''}`}
+                        className="object-cover object-center"
                       />
                     </div>
                     <div className="h-px w-11/12 my-2 sm:my-2 bg-white/15" />
