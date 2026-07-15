@@ -830,7 +830,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     key={b.id}
                     type="button"
                     onClick={() => setBarberChoice(b.id)}
-                    className={`relative p-3 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[320px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
+                    className={`relative p-3 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[320px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-white/20' : 'border-purple-500'}`}
                   >
                     <div className={"relative h-36 w-36 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
                     >
@@ -844,7 +844,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         className="object-cover object-center"
                       />
                     </div>
-                    <div className="h-px w-11/12 my-2 sm:my-2 bg-white/15" />
+                    <div className={`h-px w-11/12 my-2 sm:my-2 ${barberChoice === b.id ? 'bg-white/15' : 'bg-purple-500'}`} />
                     <div className="font-extrabold tracking-wide uppercase text-sm">{b.name}</div>
                     {Number.isFinite(PRICES[toBarberId(b.id)]) && (
                       <div className="text-xs sm:text-sm text-white/80 mt-1">
