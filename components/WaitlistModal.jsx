@@ -74,6 +74,26 @@ export default function WaitlistModal({
     setPreferredTimes((prev) => prev.filter((slot) => slot !== value));
   };
 
+  // "Select all" toggle for the available-hours picker: if every suggested slot
+  // is already picked, clear them; otherwise select all of them. Individual slot
+  // selection keeps working — this just checks/unchecks everything at once.
+  const allSuggestedSelected =
+    suggestedSlots.length > 0 &&
+    suggestedSlots.every((slot) => preferredTimes.includes(slot));
+
+  const toggleSelectAllTimes = () => {
+    setError("");
+    if (allSuggestedSelected) {
+      setPreferredTimes((prev) =>
+        prev.filter((slot) => !suggestedSlots.includes(slot))
+      );
+    } else {
+      setPreferredTimes((prev) =>
+        Array.from(new Set([...prev, ...suggestedSlots])).sort()
+      );
+    }
+  };
+
   useEffect(() => {
     function handleKey(e) {
       if (e.key === "Escape") {
@@ -239,6 +259,19 @@ export default function WaitlistModal({
               )}
               {!loadingSlots && !slotsError && suggestedSlots.length === 0 && (
                 <p className="text-sm text-white/60">{t("waitlist.allTimesAvailable")}</p>
+              )}
+              {!loadingSlots && !slotsError && suggestedSlots.length > 0 && (
+                <div className="mb-2 flex items-center justify-end">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-white/80 select-none">
+                    <input
+                      type="checkbox"
+                      checked={allSuggestedSelected}
+                      onChange={toggleSelectAllTimes}
+                      className="h-4 w-4 rounded border-white/30 bg-transparent accent-[#a855f7]"
+                    />
+                    {t("waitlist.selectAllTimes")}
+                  </label>
+                </div>
               )}
               {!loadingSlots && !slotsError && suggestedSlots.length > 0 && (
                 <div className="flex flex-wrap gap-2">
