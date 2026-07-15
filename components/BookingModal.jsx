@@ -830,9 +830,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     key={b.id}
                     type="button"
                     onClick={() => setBarberChoice(b.id)}
-                    className={`relative p-3 sm:p-4 border rounded-2xl text-center hover:bg-white/5 shadow-sm flex flex-col items-center w-[320px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-white/20' : 'border-purple-500'}`}
+                    className={`relative p-3 sm:p-4 border rounded-2xl text-center bg-gradient-to-b from-purple-500/10 via-white/[0.03] to-transparent hover:bg-white/5 shadow-sm flex flex-col items-center w-[320px] sm:w-[300px] mx-auto ${barberChoice === b.id ? 'border-purple-500' : 'border-white/20'}`}
                   >
-                    <div className={"relative h-36 w-36 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow"}
+                    <div className={"relative h-36 w-36 sm:h-44 sm:w-44 rounded-full overflow-hidden bg-white/10 border border-white/10 transition-shadow shadow-[0_12px_40px_-12px_rgba(139,47,240,0.45)]"}
                     >
                       <Image
                         src={b.image}
@@ -841,10 +841,10 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         priority
                         fetchPriority="high"
                         sizes="(max-width: 640px) 176px, 192px"
-                        className="object-cover object-center"
+                        className="object-cover object-[center_25%]"
                       />
                     </div>
-                    <div className={`h-px w-11/12 my-2 sm:my-2 ${barberChoice === b.id ? 'bg-white/15' : 'bg-purple-500'}`} />
+                    <div className={`h-px w-11/12 my-2 sm:my-2 ${barberChoice === b.id ? 'bg-purple-500' : 'bg-white/15'}`} />
                     <div className="font-extrabold tracking-wide uppercase text-sm">{b.name}</div>
                     {Number.isFinite(PRICES[toBarberId(b.id)]) && (
                       <div className="text-xs sm:text-sm text-white/80 mt-1">
