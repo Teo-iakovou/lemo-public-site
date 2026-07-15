@@ -103,8 +103,18 @@ export default function Home() {
             </h1>
           </Reveal>
           <Reveal delay={150}>
-            <div className="flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
               <button onClick={handleOpenClick} className="btn btn-primary btn-gang font-display tracking-tight whitespace-nowrap">{t("home.bookNow")}</button>
+              <a
+                href="#team"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById("team")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="text-sm text-white/70 transition-colors hover:text-[#8B2FF0]"
+              >
+                {t("home.meetTeam")} ↓
+              </a>
             </div>
           </Reveal>
         </div>
