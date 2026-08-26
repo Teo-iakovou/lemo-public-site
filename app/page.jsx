@@ -125,7 +125,8 @@ export default function Home() {
       {/* Team (contains its own marquee divider) */}
       <TeamShowcase />
 
-      {/* Map */}
+      {/* Map — ΠΡΟΣΩΡΙΝΑ ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟ (άλλαξε false→true για επαναφορά) */}
+      {false && (
       <section id="location" className="section pt-0">
         <Reveal as="div" className="container-xl">
           <h2 className="font-display text-4xl mb-6">{t("home.location")}</h2>
@@ -150,6 +151,7 @@ export default function Home() {
           </div>
         </Reveal>
       </section>
+      )}
 
       {/* Merged Booking + Hours just before footer */}
       <section id="booking-hours" className="section pt-0">
@@ -159,6 +161,8 @@ export default function Home() {
             <p className="muted mb-4">{t("home.walkinText")}</p>
 
           </div>
+          {/* Opening hours — ΠΡΟΣΩΡΙΝΑ ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟ (άλλαξε false→true για επαναφορά) */}
+          {false && (
           <div>
             <h2 className="font-display text-2xl mb-2">{t("home.openingHours")}</h2>
             <ul className="muted leading-7">
@@ -167,6 +171,7 @@ export default function Home() {
               <li>{t("home.hoursSunMon")}</li>
             </ul>
           </div>
+          )}
         </Reveal>
       </section>
 
