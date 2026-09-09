@@ -222,9 +222,11 @@ export default function ProfilePanel() {
   );
 
   const requestCancel = useCallback(
-    (id) => {
+    (appt) => {
+      const id = appt?._id;
       if (!id || cancelingId) return;
-      setConfirmPrompt({ type: "cancel", id });
+      // Keep the whole appointment so the confirm dialog can name a surviving group sibling.
+      setConfirmPrompt({ type: "cancel", id, appt });
     },
     [cancelingId]
   );
@@ -528,6 +530,11 @@ export default function ProfilePanel() {
                     <span className="text-white/70">{timeLabel}</span>
                   </div>
                   <div className="text-white/80 text-sm">{dateLabel}</div>
+                  {appt.bookedFor && (
+                    <div className="text-xs text-[#8B2FF0] mt-0.5">
+                      {t("profile.messages.siblingFor")} {appt.bookedFor}
+                    </div>
+                  )}
                   <div className="text-xs text-white/50 mt-1 capitalize">
                     {appt.type === "appointment"
                       ? t("profile.types.appointment")
@@ -551,7 +558,7 @@ export default function ProfilePanel() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => requestCancel(appt._id)}
+                        onClick={() => requestCancel(appt)}
                         disabled={cancelingId === appt._id}
                         className="rounded border border-red-400 px-3 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50"
                       >
@@ -586,6 +593,45 @@ export default function ProfilePanel() {
                   ? t("profile.messages.confirmCancelBody")
                   : t("profile.messages.confirmRescheduleBody")}
               </p>
+              {confirmPrompt.type === "cancel" &&
+                (() => {
+                  // Name the surviving group sibling so nobody assumes BOTH were cancelled.
+                  const cur = confirmPrompt.appt;
+                  const sib =
+                    cur && cur.groupId
+                      ? appointments.find(
+                          (a) =>
+                            a._id !== cur._id &&
+                            a.groupId === cur.groupId &&
+                            new Date(a.appointmentDateTime).getTime() > Date.now()
+                        )
+                      : null;
+                  if (!sib) return null;
+                  const s = new Date(sib.appointmentDateTime);
+                  const d = s.toLocaleDateString(locale, {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  });
+                  const tm = s.toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  });
+                  return (
+                    <div className="mb-4 rounded-lg border border-[#8B2FF0]/40 bg-[#8B2FF0]/10 px-3 py-2 text-sm">
+                      <div className="font-semibold text-white">
+                        {t("profile.messages.siblingNotice")}
+                      </div>
+                      <div className="mt-1 text-white/80">
+                        {d} · {tm} · {sib.barber}
+                        {sib.bookedFor
+                          ? ` (${t("profile.messages.siblingFor")} ${sib.bookedFor})`
+                          : ""}
+                      </div>
+                    </div>
+                  );
+                })()}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"

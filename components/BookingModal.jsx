@@ -103,6 +103,41 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [editRequiresSelection, setEditRequiresSelection] = useState(false);
   const editPrefilledRef = useRef(false);
 
+  // Optional second appointment (multi-slot). Default OFF — the single-appointment flow is
+  // unchanged unless the customer explicitly opts in here.
+  const [addSecond, setAddSecond] = useState(false);
+  const [barber2, setBarber2] = useState("");
+  const [time2, setTime2] = useState("");
+  const [slots2, setSlots2] = useState([]);
+  const [loadingSlots2, setLoadingSlots2] = useState(false);
+  const [bookedForEnabled, setBookedForEnabled] = useState(false);
+  const [bookedFor2, setBookedFor2] = useState("");
+  const resetSecond = useCallback(() => {
+    setAddSecond(false); setBarber2(""); setTime2("");
+    setSlots2([]); setLoadingSlots2(false); setBookedForEnabled(false); setBookedFor2("");
+  }, []);
+
+  // Reset the second-appointment sub-form whenever the modal closes.
+  useEffect(() => { if (!open) resetSecond(); }, [open, resetSecond]);
+
+  // The second appointment is ALWAYS on the same date as the first (slot 1's `date`). If that
+  // date changes, drop any second-slot time so it can't carry over to a different day.
+  useEffect(() => { setTime2(""); }, [date]);
+
+  // Availability for the second slot uses slot 1's date + the chosen second barber — same source
+  // (getAvailability -> public /api/availability) and same 60' same-day cutoff as slot 1, so a
+  // shown time can never be rejected by the backend for lead-time reasons.
+  useEffect(() => {
+    if (!open || !addSecond || !barber2 || !date) { setSlots2([]); return; }
+    let aborted = false;
+    setLoadingSlots2(true);
+    getAvailability({ serviceId, date, barberId: barber2 })
+      .then((res) => { if (!aborted) setSlots2(Array.isArray(res) ? res : res?.slots || []); })
+      .catch(() => { if (!aborted) setSlots2([]); })
+      .finally(() => { if (!aborted) setLoadingSlots2(false); });
+    return () => { aborted = true; };
+  }, [open, addSecond, barber2, date, serviceId]);
+
   // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
   const PRICES = useMemo(() => {
     const defaults = { lemo: 15, forou: 15 };
@@ -771,6 +806,24 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         if (updatedId) params.set("id", updatedId);
         params.set("mode", "updated");
         router.push(`/success?${params.toString()}`);
+      } else if (addSecond && barber2 && time2) {
+        // Multi-slot: submit BOTH appointments in one atomic request (backend groups them).
+        // The second appointment is always on the SAME date as the first.
+        const slots = [
+          { date, time, barber: toGreekBarber(barber) },
+          {
+            date,
+            time: time2,
+            barber: toGreekBarber(barber2),
+            bookedFor:
+              bookedForEnabled && bookedFor2.trim() ? bookedFor2.trim() : undefined,
+          },
+        ];
+        const result = await createAppointment({ serviceId, name, phone, slots });
+        const id = result?.appointments?.[0]?._id || result?.id || "";
+        const p = new URLSearchParams();
+        if (id) p.set("id", id);
+        router.push(`/success?${p.toString()}`);
       } else {
         const payload = { serviceId, dateTime, name, phone, barber: toGreekBarber(barber) };
         const result = await createAppointment(payload);
@@ -1129,6 +1182,116 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                   defaultCountry="CY"
                 />
               </label>
+
+              {/* Optional second appointment (multi-slot). Default collapsed; one tap to add,
+                  one tap to remove — the default path stays a single appointment. */}
+              {!editingActive && (
+                <div className="rounded-md border border-white/10 bg-white/5 p-3">
+                  {!addSecond ? (
+                    <button
+                      type="button"
+                      onClick={() => setAddSecond(true)}
+                      className="w-full py-1 text-sm font-semibold text-[#8B2FF0] hover:text-[#a45bf5]"
+                    >
+                      ＋ {t("booking.second.add")}
+                    </button>
+                  ) : (
+                    <div className="grid gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">{t("booking.second.title")}</span>
+                        <button
+                          type="button"
+                          onClick={resetSecond}
+                          className="text-xs text-white/60 hover:text-white"
+                        >
+                          {t("booking.second.remove")}
+                        </button>
+                      </div>
+                      <div className="text-xs text-white/50">
+                        {t("booking.second.sameDayNote")}{" "}
+                        {date
+                          ? new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "long" })
+                          : ""}
+                      </div>
+                      {/* Barber */}
+                      <div>
+                        <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickBarber")}</div>
+                        <div className="flex flex-wrap gap-2">
+                          {["Lemo", "Forou", "Koushis"].map((b) => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => { setBarber2(b); setTime2(""); }}
+                              className={`rounded-md border px-3 py-1.5 text-sm ${
+                                barber2 === b
+                                  ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
+                                  : "border-white/20 hover:bg-white/10"
+                              }`}
+                            >
+                              {b}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Time (excludes the already-chosen slot) */}
+                      {barber2 && (
+                        <div>
+                          <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickTime")}</div>
+                          {loadingSlots2 ? (
+                            <span className="text-sm text-white/50">…</span>
+                          ) : (
+                            (() => {
+                              const opts = slots2.filter(
+                                (s) => !(barber2 === toBarberId(barber) && s === time)
+                              );
+                              return opts.length ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {opts.map((s) => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => setTime2(s)}
+                                      className={`rounded-md border px-3 py-1.5 text-sm ${
+                                        time2 === s
+                                          ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
+                                          : "border-white/20 hover:bg-white/10"
+                                      }`}
+                                    >
+                                      {s}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-white/50">{t("booking.second.noSlots")}</span>
+                              );
+                            })()
+                          )}
+                        </div>
+                      )}
+                      {/* For someone else */}
+                      <label className="flex items-center gap-2 text-sm text-white/80">
+                        <input
+                          type="checkbox"
+                          checked={bookedForEnabled}
+                          onChange={(e) => setBookedForEnabled(e.target.checked)}
+                          className="accent-[#8B2FF0]"
+                        />
+                        {t("booking.second.forSomeoneElse")}
+                      </label>
+                      {bookedForEnabled && (
+                        <input
+                          type="text"
+                          value={bookedFor2}
+                          onChange={(e) => setBookedFor2(e.target.value)}
+                          placeholder={t("booking.second.theirName")}
+                          className="rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-neutral-400"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Email field removed from public UI */}
               {error && <p className="text-sm text-red-500">{error}</p>}
               <div
@@ -1148,7 +1311,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                 </button>
                 <button
                   type="button"
-                  disabled={!serviceId || !date || !time || !name || !phone || submitting || (editingActive && editContext?.locked)}
+                  disabled={!serviceId || !date || !time || !name || !phone || submitting || (editingActive && editContext?.locked) || (addSecond && (!barber2 || !time2 || (bookedForEnabled && !bookedFor2.trim())))}
                   onClick={onConfirm}
                   className="ml-auto px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
                 >
