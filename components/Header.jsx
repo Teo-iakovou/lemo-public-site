@@ -1,12 +1,38 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useAuth } from "./AuthProvider";
 import { useLanguage } from "./LanguageProvider";
+import { useRefreshBus } from "./RefreshProvider";
 
 export default function Header() {
   const { user, openAuthModal, openProfile, openSettings } = useAuth();
   const { lang, setLang, t } = useLanguage();
+  const router = useRouter();
+  const refreshBus = useRefreshBus();
+  // router.refresh() is fire-and-forget; drive the spinner off useTransition's
+  // isPending for the fallback branch, and off refetching for the booking branch.
+  const [isPending, startTransition] = useTransition();
+  const [refetching, setRefetching] = useState(false);
+  const refreshing = isPending || refetching;
+
+  const onRefresh = useCallback(async () => {
+    if (refreshing) return; // guard against double-clicks
+    setRefetching(true);
+    let handled = false;
+    try {
+      handled = refreshBus ? await refreshBus.triggerRefresh() : false;
+    } finally {
+      setRefetching(false);
+    }
+    // No booking/availability component present → re-fetch server components.
+    if (!handled) {
+      startTransition(() => {
+        router.refresh();
+      });
+    }
+  }, [refreshing, refreshBus, router]);
 
   const canManageSettings = useMemo(() => {
     if (!user) return false;
@@ -78,6 +104,28 @@ export default function Header() {
               EN
             </button>
           </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-white/15 bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={t("nav.refresh")}
+            title={t("nav.refresh")}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-4 w-4 sm:h-5 sm:w-5 ${refreshing ? "animate-spin" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
           {canManageSettings && (
             <button
               onClick={openSettings}

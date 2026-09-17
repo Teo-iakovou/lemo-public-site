@@ -22,6 +22,7 @@ import {
 } from "../lib/publicSettings";
 import { useAuth } from "./AuthProvider";
 import { useLanguage } from "./LanguageProvider";
+import { useRefreshBus } from "./RefreshProvider";
 import { mapCommonErrorMessage } from "../lib/i18n";
 
 const ATHENS_TIME_ZONE = "Europe/Athens";
@@ -90,6 +91,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [time, setTime] = useState("");
   const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
+  // Inline "the slot you picked is gone" notice, shared by the refresh button and
+  // the slot-exclusion logic. Holds an i18n key or "".
+  const [slotNotice, setSlotNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
@@ -99,6 +103,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const bodyLockRef = useRef(null);
   const confirmingRef = useRef(false);
   const { user } = useAuth();
+  const refreshBus = useRefreshBus();
   const [editContext, setEditContext] = useState(null);
   const [editRequiresSelection, setEditRequiresSelection] = useState(false);
   const editPrefilledRef = useRef(false);
@@ -122,7 +127,10 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   // The second appointment is ALWAYS on the same date as the first (slot 1's `date`). If that
   // date changes, drop any second-slot time so it can't carry over to a different day.
-  useEffect(() => { setTime2(""); }, [date]);
+  useEffect(() => { setTime2(""); setSlotNotice(""); }, [date]);
+
+  // Clear the stale-slot notice whenever the modal closes.
+  useEffect(() => { if (!open) setSlotNotice(""); }, [open]);
 
   // Availability for the second slot uses slot 1's date + the chosen second barber — same source
   // (getAvailability -> public /api/availability) and same 60' same-day cutoff as slot 1, so a
@@ -137,6 +145,53 @@ export default function BookingModal({ open, onClose, editAppointment }) {
       .finally(() => { if (!aborted) setLoadingSlots2(false); });
     return () => { aborted = true; };
   }, [open, addSecond, barber2, date, serviceId]);
+
+  // Re-fetch availability for the current selection(s) when the Header refresh button is
+  // pressed while the modal is open. Reuses getAvailability (same as the normal flow). If a
+  // slot the user had picked is no longer available, clear it and surface the inline notice.
+  const refreshAvailability = useCallback(async () => {
+    if (!open) return;
+    let cleared = false;
+
+    if (barber && date) {
+      try {
+        const res = await getAvailability({ serviceId, date, barberId: toBarberId(barber) });
+        const list = Array.isArray(res) ? res : res?.slots || [];
+        setSlots(list);
+        setSlotsByDate((m) => ({ ...m, [date]: list }));
+        if (time && !list.includes(time)) {
+          setTime("");
+          setLastTime("");
+          cleared = true;
+        }
+      } catch {
+        /* keep existing slots on error */
+      }
+    }
+
+    if (addSecond && barber2 && date) {
+      try {
+        const res2 = await getAvailability({ serviceId, date, barberId: toBarberId(barber2) });
+        const list2 = Array.isArray(res2) ? res2 : res2?.slots || [];
+        setSlots2(list2);
+        if (time2 && !list2.includes(time2)) {
+          setTime2("");
+          cleared = true;
+        }
+      } catch {
+        /* keep existing slots on error */
+      }
+    }
+
+    setSlotNotice(cleared ? "booking.labels.slotUnavailable" : "");
+  }, [open, serviceId, date, barber, time, addSecond, barber2, time2]);
+
+  // Register the re-fetch handler with the refresh bus while the modal is open, so the
+  // Header button re-fetches slots instead of falling back to router.refresh().
+  useEffect(() => {
+    if (!open || !refreshBus) return undefined;
+    return refreshBus.registerRefreshHandler(refreshAvailability);
+  }, [open, refreshBus, refreshAvailability]);
 
   // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
   const PRICES = useMemo(() => {
@@ -870,6 +925,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
           className="p-4 sm:p-6 grid grid-cols-1 gap-6"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
         >
+          {slotNotice && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              {t(slotNotice)}
+            </div>
+          )}
           {/* Step 1: Barber selection */}
           {!barber && (
             <div className="sm:col-span-2">
@@ -1046,7 +1106,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                       <button
                         key={t}
                         type="button"
-                        onClick={() => { setLastTime(t); }}
+                        onClick={() => { setLastTime(t); setSlotNotice(""); }}
                         className={`relative px-3 py-2 rounded-md border text-sm ${
                           (time ? time === t : lastTime === t)
                             ? "border-2 border-purple-500 text-white bg-purple-600/20 shadow-[0_0_0_2px_rgba(168,85,247,0.4)]"
@@ -1250,7 +1310,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                                     <button
                                       key={s}
                                       type="button"
-                                      onClick={() => setTime2(s)}
+                                      onClick={() => { setTime2(s); setSlotNotice(""); }}
                                       className={`rounded-md border px-3 py-1.5 text-sm ${
                                         time2 === s
                                           ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
