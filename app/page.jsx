@@ -58,15 +58,15 @@ export default function Home() {
       {intro && <IntroOverlay onDone={() => setIntro(false)} />}
       <Header />
 
-      {/* Hero */}
-      <section className="relative flex items-center justify-center min-h-[88vh] overflow-hidden">
+      {/* Hero — shorter than full viewport so the next section peeks on first load */}
+      <section className="relative flex items-center justify-center hero-min-h overflow-hidden">
         <div
           className="absolute inset-0 -z-10"
           style={{
             backgroundImage:
               `linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,.7)), url(${HERO_URL})`,
             backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundPosition: "center 30%",
           }}
         />
         <div className="container-xl text-center space-y-6 -mt-4 sm:-mt-8">
