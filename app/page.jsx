@@ -66,7 +66,7 @@ export default function Home() {
             backgroundImage:
               `linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,.7)), url(${HERO_URL})`,
             backgroundSize: "cover",
-            backgroundPosition: "center 30%",
+            backgroundPosition: "center",
           }}
         />
         <div className="container-xl text-center space-y-6 -mt-4 sm:-mt-8">
