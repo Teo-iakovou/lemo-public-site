@@ -295,16 +295,11 @@ h1, h2, h3, .font-display {
 }
 
 /* Hero height: shorter than the viewport so the next section peeks on first load.
-   svh keeps mobile browser chrome from clipping; vh is the fallback for older
-   browsers (declared first so svh wins where supported). */
+   65svh keeps the same ~35% peek on both mobile and desktop — on tall desktop
+   monitors a larger value (e.g. 75svh) still visually fills the screen. svh keeps
+   mobile browser chrome from clipping; vh is the fallback declared first so svh
+   wins where supported. */
 .hero-min-h {
   min-height: 65vh;
   min-height: 65svh;
-}
-
-@media (min-width: 768px) {
-  .hero-min-h {
-    min-height: 75vh;
-    min-height: 75svh;
-  }
 }
