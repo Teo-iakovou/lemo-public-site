@@ -48,7 +48,10 @@ function businessWindow(date, forceOpen = false) {
   // Closed Sun (0) and Mon (1)
   const dow = date.getDay();
   if (!forceOpen && (dow === 0 || dow === 1)) return null;
-  // Open 09:00 – 19:40 for all trading days so the final 19:00 slot is available
+  // Saturday (6) closes earlier: 09:00–18:20 (last start 17:40), matching the backend
+  // booking rules. A manually-opened Saturday keeps these hours too.
+  if (dow === 6) return { open: 9 * 60, close: 18 * 60 + 20 };
+  // Tue–Fri (and manually-opened Sun/Mon): 09:00–19:40 so the final 19:00 slot is available
   return { open: 9 * 60, close: 19 * 60 + 40 };
 }
 
