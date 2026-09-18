@@ -58,8 +58,8 @@ export default function Home() {
       {intro && <IntroOverlay onDone={() => setIntro(false)} />}
       <Header />
 
-      {/* Hero */}
-      <section className="relative flex items-center justify-center min-h-[88vh] overflow-hidden">
+      {/* Hero — shorter than full viewport so the next section peeks on first load */}
+      <section className="relative flex items-center justify-center hero-min-h overflow-hidden">
         <div
           className="absolute inset-0 -z-10"
           style={{

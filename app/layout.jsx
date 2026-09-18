@@ -5,6 +5,7 @@ import AuthModal from "../components/AuthModal";
 import ProfilePanel from "../components/ProfilePanel";
 import BarberSettingsModal from "../components/BarberSettingsModal";
 import LanguageProvider from "../components/LanguageProvider";
+import RefreshProvider from "../components/RefreshProvider";
 import "./globals.css";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -46,11 +47,13 @@ export default function RootLayout({ children }) {
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${graffiti.variable} antialiased`}>
         <LanguageProvider>
           <AuthProvider>
-            <BookingSSRProvider />
-            {children}
-            <AuthModal />
-            <ProfilePanel />
-            <BarberSettingsModal />
+            <RefreshProvider>
+              <BookingSSRProvider />
+              {children}
+              <AuthModal />
+              <ProfilePanel />
+              <BarberSettingsModal />
+            </RefreshProvider>
           </AuthProvider>
         </LanguageProvider>
       </body>

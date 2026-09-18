@@ -22,9 +22,30 @@ import {
 } from "../lib/publicSettings";
 import { useAuth } from "./AuthProvider";
 import { useLanguage } from "./LanguageProvider";
+import { useRefreshBus } from "./RefreshProvider";
 import { mapCommonErrorMessage } from "../lib/i18n";
 
 const ATHENS_TIME_ZONE = "Europe/Athens";
+
+// Fixed slot length. This app has no per-service/variable duration — the whole
+// booking grid is 40-min slots on a 40-min step (see app/api/availability). If a
+// real per-appointment duration is ever introduced, thread it in here.
+const SLOT_DURATION_MIN = 40;
+
+function slotToMinutes(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+// Half-open overlap of two [start, start+dur) ranges expressed as "HH:MM" labels.
+// With the fixed 40/40 grid this reduces to "same start", but it stays correct if
+// durations ever differ.
+function slotsOverlap(a, b, dur = SLOT_DURATION_MIN) {
+  const as = slotToMinutes(a);
+  const bs = slotToMinutes(b);
+  if (as == null || bs == null) return false;
+  return as < bs + dur && bs < as + dur;
+}
 
 function toAthensDateParts(value) {
   if (!value) return null;
@@ -90,6 +111,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [time, setTime] = useState("");
   const [lastTime, setLastTime] = useState("");
   const [error, setError] = useState("");
+  // Inline "the slot you picked is gone" notice, shared by the refresh button and
+  // the slot-exclusion logic. Holds an i18n key or "".
+  const [slotNotice, setSlotNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const [render, setRender] = useState(false);
@@ -99,6 +123,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const bodyLockRef = useRef(null);
   const confirmingRef = useRef(false);
   const { user } = useAuth();
+  const refreshBus = useRefreshBus();
   const [editContext, setEditContext] = useState(null);
   const [editRequiresSelection, setEditRequiresSelection] = useState(false);
   const editPrefilledRef = useRef(false);
@@ -112,31 +137,101 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   const [loadingSlots2, setLoadingSlots2] = useState(false);
   const [bookedForEnabled, setBookedForEnabled] = useState(false);
   const [bookedFor2, setBookedFor2] = useState("");
+  // "same" → second appointment shares the first's date; "other" → its own date2.
+  const [secondDateMode, setSecondDateMode] = useState("same");
+  const [date2, setDate2] = useState("");
   const resetSecond = useCallback(() => {
     setAddSecond(false); setBarber2(""); setTime2("");
     setSlots2([]); setLoadingSlots2(false); setBookedForEnabled(false); setBookedFor2("");
+    setSecondDateMode("same"); setDate2("");
   }, []);
+
+  // The date the second appointment actually lands on.
+  const effectiveDate2 = secondDateMode === "other" ? date2 : date;
 
   // Reset the second-appointment sub-form whenever the modal closes.
   useEffect(() => { if (!open) resetSecond(); }, [open, resetSecond]);
 
-  // The second appointment is ALWAYS on the same date as the first (slot 1's `date`). If that
-  // date changes, drop any second-slot time so it can't carry over to a different day.
-  useEffect(() => { setTime2(""); }, [date]);
+  // Reset the second appointment's chosen slot when either the first date changes (in
+  // same-day mode the second follows it) or the same/other choice changes (spec: switching
+  // resets the second slot). The slots2 fetch effect re-runs off effectiveDate2 on its own.
+  useEffect(() => { setTime2(""); setSlotNotice(""); }, [date, secondDateMode]);
+
+  // Clear the stale-slot notice whenever the modal closes.
+  useEffect(() => { if (!open) setSlotNotice(""); }, [open]);
 
   // Availability for the second slot uses slot 1's date + the chosen second barber — same source
   // (getAvailability -> public /api/availability) and same 60' same-day cutoff as slot 1, so a
   // shown time can never be rejected by the backend for lead-time reasons.
   useEffect(() => {
-    if (!open || !addSecond || !barber2 || !date) { setSlots2([]); return; }
+    if (!open || !addSecond || !barber2 || !effectiveDate2) { setSlots2([]); return; }
     let aborted = false;
     setLoadingSlots2(true);
-    getAvailability({ serviceId, date, barberId: barber2 })
+    getAvailability({ serviceId, date: effectiveDate2, barberId: toBarberId(barber2) })
       .then((res) => { if (!aborted) setSlots2(Array.isArray(res) ? res : res?.slots || []); })
       .catch(() => { if (!aborted) setSlots2([]); })
       .finally(() => { if (!aborted) setLoadingSlots2(false); });
     return () => { aborted = true; };
-  }, [open, addSecond, barber2, date, serviceId]);
+  }, [open, addSecond, barber2, effectiveDate2, serviceId]);
+
+  // If the first slot changes (or dates line up) such that the second's chosen slot now
+  // overlaps the first on the SAME date, clear the second's selection and flag it inline.
+  useEffect(() => {
+    if (!addSecond || !time2 || !time) return;
+    if (effectiveDate2 === date && slotsOverlap(time2, time)) {
+      setTime2("");
+      setSlotNotice("booking.labels.slotUnavailable");
+    }
+  }, [time, effectiveDate2, date, addSecond, time2]);
+
+  // Re-fetch availability for the current selection(s) when the Header refresh button is
+  // pressed while the modal is open. Reuses getAvailability (same as the normal flow). If a
+  // slot the user had picked is no longer available, clear it and surface the inline notice.
+  const refreshAvailability = useCallback(async () => {
+    if (!open) return;
+    let cleared = false;
+
+    if (barber && date) {
+      try {
+        const res = await getAvailability({ serviceId, date, barberId: toBarberId(barber) });
+        const list = Array.isArray(res) ? res : res?.slots || [];
+        setSlots(list);
+        setSlotsByDate((m) => ({ ...m, [date]: list }));
+        if (time && !list.includes(time)) {
+          setTime("");
+          setLastTime("");
+          cleared = true;
+        }
+      } catch {
+        /* keep existing slots on error */
+      }
+    }
+
+    if (addSecond && barber2 && effectiveDate2) {
+      try {
+        const res2 = await getAvailability({ serviceId, date: effectiveDate2, barberId: toBarberId(barber2) });
+        const list2 = Array.isArray(res2) ? res2 : res2?.slots || [];
+        setSlots2(list2);
+        // Stale if the backend dropped it, or it now overlaps the first slot on the same date.
+        const overlapsFirst = effectiveDate2 === date && time && slotsOverlap(time2, time);
+        if (time2 && (!list2.includes(time2) || overlapsFirst)) {
+          setTime2("");
+          cleared = true;
+        }
+      } catch {
+        /* keep existing slots on error */
+      }
+    }
+
+    setSlotNotice(cleared ? "booking.labels.slotUnavailable" : "");
+  }, [open, serviceId, date, barber, time, addSecond, barber2, time2, effectiveDate2]);
+
+  // Register the re-fetch handler with the refresh bus while the modal is open, so the
+  // Header button re-fetches slots instead of falling back to router.refresh().
+  useEffect(() => {
+    if (!open || !refreshBus) return undefined;
+    return refreshBus.registerRefreshHandler(refreshAvailability);
+  }, [open, refreshBus, refreshAvailability]);
 
   // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
   const PRICES = useMemo(() => {
@@ -806,13 +901,13 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         if (updatedId) params.set("id", updatedId);
         params.set("mode", "updated");
         router.push(`/success?${params.toString()}`);
-      } else if (addSecond && barber2 && time2) {
+      } else if (addSecond && barber2 && time2 && effectiveDate2) {
         // Multi-slot: submit BOTH appointments in one atomic request (backend groups them).
-        // The second appointment is always on the SAME date as the first.
+        // The second appointment may be the same day as the first or another day.
         const slots = [
           { date, time, barber: toGreekBarber(barber) },
           {
-            date,
+            date: effectiveDate2,
             time: time2,
             barber: toGreekBarber(barber2),
             bookedFor:
@@ -870,6 +965,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
           className="p-4 sm:p-6 grid grid-cols-1 gap-6"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 24px)' }}
         >
+          {slotNotice && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              {t(slotNotice)}
+            </div>
+          )}
           {/* Step 1: Barber selection */}
           {!barber && (
             <div className="sm:col-span-2">
@@ -1040,21 +1140,27 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                     {new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
                   </span>
                 </div>
-                {
+                {(() => {
+                  // Symmetric exclusion: when the second appointment is on this same date,
+                  // hide any first-slot option that overlaps the second's chosen time.
+                  const firstOpts = slots.filter(
+                    (s) => !(addSecond && time2 && effectiveDate2 === date && slotsOverlap(s, time2))
+                  );
+                  return (
                   <div className="flex flex-wrap gap-2">
-                    {slots.map((t) => (
+                    {firstOpts.map((slot) => (
                       <button
-                        key={t}
+                        key={slot}
                         type="button"
-                        onClick={() => { setLastTime(t); }}
+                        onClick={() => { setLastTime(slot); setSlotNotice(""); }}
                         className={`relative px-3 py-2 rounded-md border text-sm ${
-                          (time ? time === t : lastTime === t)
+                          (time ? time === slot : lastTime === slot)
                             ? "border-2 border-purple-500 text-white bg-purple-600/20 shadow-[0_0_0_2px_rgba(168,85,247,0.4)]"
                             : "border-white/20 hover:bg-white/10"
                           }`}
                       >
-                        {t}
-                        {(time ? time === t : lastTime === t) && (
+                        {slot}
+                        {(time ? time === slot : lastTime === slot) && (
                           <span
                             aria-hidden
                             className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-500 text-black flex items-center justify-center text-[10px]"
@@ -1064,11 +1170,12 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         )}
                       </button>
                     ))}
-                    {(!loadingSlots && slots.length === 0) && (
+                    {(!loadingSlots && firstOpts.length === 0) && (
                       <p className="text-sm text-neutral-400">{t("booking.labels.noSlots")}</p>
                     )}
                   </div>
-                }
+                  );
+                })()}
                 <div className="mt-4 rounded-2xl border border-white/15 bg-white/5 p-4 text-white">
                   <p className="text-base font-semibold">
                     {t("booking.labels.cantFindTime")}
@@ -1207,12 +1314,56 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                           {t("booking.second.remove")}
                         </button>
                       </div>
-                      <div className="text-xs text-white/50">
-                        {t("booking.second.sameDayNote")}{" "}
-                        {date
-                          ? new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "long" })
-                          : ""}
+                      {/* Date choice: same day (default) or another day */}
+                      <div>
+                        <div className="mb-1 text-xs text-neutral-400">{t("booking.second.whenLabel")}</div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSecondDateMode("same")}
+                            className={`rounded-md border px-3 py-1.5 text-sm ${
+                              secondDateMode === "same"
+                                ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
+                                : "border-white/20 hover:bg-white/10"
+                            }`}
+                          >
+                            {t("booking.second.sameDay")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSecondDateMode("other")}
+                            className={`rounded-md border px-3 py-1.5 text-sm ${
+                              secondDateMode === "other"
+                                ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
+                                : "border-white/20 hover:bg-white/10"
+                            }`}
+                          >
+                            {t("booking.second.otherDay")}
+                          </button>
+                        </div>
+                        {secondDateMode === "same" && date && (
+                          <div className="mt-1 text-xs text-white/50">
+                            {t("booking.second.sameDayNote")}{" "}
+                            {new Date(`${date}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "long" })}
+                          </div>
+                        )}
                       </div>
+                      {/* Another-day date picker — same rules as the first appointment's calendar */}
+                      {secondDateMode === "other" && (
+                        <div>
+                          <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickDate")}</div>
+                          <Calendar
+                            value={date2}
+                            onChange={(ds) => { setDate2(ds); setTime2(""); setSlotNotice(""); }}
+                            minDate={minDate}
+                            maxDate={maxDate}
+                            closedWeekdays={[0, 1]}
+                            disabledMonths={disabledMonthsList}
+                            blockedDates={blockedDatesList}
+                            allowedDates={manualOpenDatesList}
+                          />
+                        </div>
+                      )}
                       {/* Barber */}
                       <div>
                         <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickBarber")}</div>
@@ -1233,8 +1384,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                           ))}
                         </div>
                       </div>
-                      {/* Time (excludes the already-chosen slot) */}
-                      {barber2 && (
+                      {/* Time — excludes any slot that overlaps the first appointment when
+                          the second is on the SAME date, regardless of barber. */}
+                      {barber2 && effectiveDate2 && (
                         <div>
                           <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickTime")}</div>
                           {loadingSlots2 ? (
@@ -1242,7 +1394,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                           ) : (
                             (() => {
                               const opts = slots2.filter(
-                                (s) => !(barber2 === toBarberId(barber) && s === time)
+                                (s) => !(effectiveDate2 === date && time && slotsOverlap(s, time))
                               );
                               return opts.length ? (
                                 <div className="flex flex-wrap gap-2">
@@ -1250,7 +1402,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                                     <button
                                       key={s}
                                       type="button"
-                                      onClick={() => setTime2(s)}
+                                      onClick={() => { setTime2(s); setSlotNotice(""); }}
                                       className={`rounded-md border px-3 py-1.5 text-sm ${
                                         time2 === s
                                           ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
@@ -1311,7 +1463,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                 </button>
                 <button
                   type="button"
-                  disabled={!serviceId || !date || !time || !name || !phone || submitting || (editingActive && editContext?.locked) || (addSecond && (!barber2 || !time2 || (bookedForEnabled && !bookedFor2.trim())))}
+                  disabled={!serviceId || !date || !time || !name || !phone || submitting || (editingActive && editContext?.locked) || (addSecond && (!barber2 || !effectiveDate2 || !time2 || (bookedForEnabled && !bookedFor2.trim())))}
                   onClick={onConfirm}
                   className="ml-auto px-4 py-2 rounded-md bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-400 disabled:text-white/80 disabled:cursor-not-allowed"
                 >
