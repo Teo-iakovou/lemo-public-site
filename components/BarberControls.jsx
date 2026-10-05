@@ -148,6 +148,11 @@ export default function BarberControls() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [priceSaving, setPriceSaving] = useState(false);
+  const [priceStatus, setPriceStatus] = useState({ type: "", text: "" });
+  // The open-days list grows long, so it starts collapsed.
+  const [openDaysExpanded, setOpenDaysExpanded] = useState(false);
+  const [closedDaysExpanded, setClosedDaysExpanded] = useState(false);
   const [openDate, setOpenDate] = useState("");
   const [lockDate, setLockDate] = useState("");
   const [lockDates, setLockDates] = useState([]);
@@ -470,21 +475,57 @@ export default function BarberControls() {
     }
   };
 
+  // Price + price visibility save straight away, on top of the last SAVED settings — other
+  // unsaved edits in this panel are left untouched (they still need «Αποθήκευση αλλαγών»).
+  const savePriceSettings = useCallback(
+    async (patch, successText) => {
+      setPriceSaving(true);
+      setPriceStatus({ type: "", text: "" });
+      try {
+        const saved = await updatePublicSettings({ ...initialSettings, ...patch });
+        const savedFields = {
+          barberPrices: saved.barberPrices || {},
+          barberPriceHidden: saved.barberPriceHidden || {},
+        };
+        setInitialSettings((prev) => ({ ...prev, ...savedFields }));
+        setSettings((prev) => ({ ...prev, ...savedFields }));
+        setPriceStatus({ type: "success", text: successText });
+      } catch (err) {
+        setPriceStatus({ type: "error", text: err.message || "Αποτυχία αποθήκευσης." });
+      } finally {
+        setPriceSaving(false);
+      }
+    },
+    [initialSettings]
+  );
+
   const applyBarberPrice = useCallback(() => {
     const next = Number(barberPriceDraft);
-    if (!Number.isFinite(next) || next < 0) {
-      setError("Μη έγκυρη τιμή. Βάλτε αριθμό >= 0.");
+    if (barberPriceDraft === "" || !Number.isFinite(next) || next < 0) {
+      setPriceStatus({ type: "error", text: "Μη έγκυρη τιμή. Βάλτε αριθμό >= 0." });
       return;
     }
-    setSettings((prev) => ({
-      ...prev,
-      barberPrices: {
-        ...(prev.barberPrices || {}),
-        [selectedBarberKey]: Math.round(next * 100) / 100,
+    const rounded = Math.round(next * 100) / 100;
+    savePriceSettings(
+      {
+        barberPrices: { ...(initialSettings.barberPrices || {}), [selectedBarberKey]: rounded },
       },
-    }));
-    setSuccess("Η τιμή ενημερώθηκε.");
-  }, [barberPriceDraft, selectedBarberKey]);
+      `Αποθηκεύτηκε: ${rounded}€`
+    );
+  }, [barberPriceDraft, selectedBarberKey, initialSettings, savePriceSettings]);
+
+  const selectedPriceHidden = Boolean(settings.barberPriceHidden?.[selectedBarberKey]);
+
+  const togglePriceHidden = useCallback(() => {
+    const nextHidden = { ...(initialSettings.barberPriceHidden || {}) };
+    const hide = !nextHidden[selectedBarberKey];
+    if (hide) nextHidden[selectedBarberKey] = true;
+    else delete nextHidden[selectedBarberKey];
+    savePriceSettings(
+      { barberPriceHidden: nextHidden },
+      hide ? "Η τιμή δεν φαίνεται πλέον στο site." : "Η τιμή φαίνεται ξανά στο site."
+    );
+  }, [initialSettings, selectedBarberKey, savePriceSettings]);
 
   const saveWhitelist = () => {
     if (!whitelistDate) {
@@ -553,6 +594,8 @@ export default function BarberControls() {
         JSON.stringify(initialSettings.barberBlockedDates || {}) ||
       JSON.stringify(settings.barberPrices || {}) !==
         JSON.stringify(initialSettings.barberPrices || {}) ||
+      JSON.stringify(settings.barberPriceHidden || {}) !==
+        JSON.stringify(initialSettings.barberPriceHidden || {}) ||
       JSON.stringify(settings.specialDayHours || {}) !==
         JSON.stringify(initialSettings.specialDayHours || {}) ||
       JSON.stringify(settings.extraDaySlots || {}) !==
@@ -602,7 +645,10 @@ export default function BarberControls() {
           <label className="text-xs uppercase tracking-wide text-white/60">Κουρέας</label>
           <select
             value={selectedBarberKey}
-            onChange={(e) => setSelectedBarberKey(e.target.value)}
+            onChange={(e) => {
+              setSelectedBarberKey(e.target.value);
+              setPriceStatus({ type: "", text: "" });
+            }}
             className="rounded-lg border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white focus:border-emerald-300 focus:outline-none"
           >
             {BARBER_KEYS.map((key) => (
@@ -625,10 +671,30 @@ export default function BarberControls() {
           <button
             type="button"
             onClick={applyBarberPrice}
-            className="rounded-lg border border-white/25 px-3 py-1.5 text-xs text-white/80 hover:border-white/50 hover:text-white"
+            disabled={priceSaving || loading}
+            className="rounded-lg bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-black hover:bg-emerald-400 active:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Εφαρμογή
+            {priceSaving ? "Αποθήκευση…" : "Εφαρμογή"}
           </button>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-white/80">
+            <input
+              type="checkbox"
+              checked={selectedPriceHidden}
+              onChange={togglePriceHidden}
+              disabled={priceSaving || loading}
+              className="h-4 w-4 accent-emerald-400"
+            />
+            Απόκρυψη τιμής στο site
+          </label>
+          {priceStatus.text && (
+            <span
+              className={`text-xs ${
+                priceStatus.type === "error" ? "text-rose-300" : "text-emerald-300"
+              }`}
+            >
+              {priceStatus.text}
+            </span>
+          )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {VISIBLE_MONTH_CHOICES.map((count) => {
@@ -685,10 +751,25 @@ export default function BarberControls() {
               })}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-semibold mb-2">Ειδικά ανοιχτές ημέρες</p>
-              {settings.allowedDates.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setOpenDaysExpanded((prev) => !prev)}
+                aria-expanded={openDaysExpanded}
+                className="mb-2 flex w-full items-center justify-between gap-2 text-left text-sm font-semibold"
+              >
+                <span>
+                  Ειδικά ανοιχτές ημέρες
+                  <span className="ml-1 font-normal text-white/50">
+                    ({settings.allowedDates.length})
+                  </span>
+                </span>
+                <span className="rounded-md border border-white/20 px-2 py-0.5 text-xs font-normal text-white/80">
+                  {openDaysExpanded ? "Κλείσιμο ▴" : "Άνοιγμα ▾"}
+                </span>
+              </button>
+              {!openDaysExpanded ? null : settings.allowedDates.length === 0 ? (
                 <p className="text-xs text-white/50">Δεν έχουν οριστεί ακόμα.</p>
               ) : (
                 <ul className="space-y-2 text-sm">
@@ -711,8 +792,23 @@ export default function BarberControls() {
               )}
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-sm font-semibold mb-2">Ημέρες που είναι κλειστές</p>
-              {scopedBlockedDates.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setClosedDaysExpanded((prev) => !prev)}
+                aria-expanded={closedDaysExpanded}
+                className="mb-2 flex w-full items-center justify-between gap-2 text-left text-sm font-semibold"
+              >
+                <span>
+                  Ημέρες που είναι κλειστές
+                  <span className="ml-1 font-normal text-white/50">
+                    ({scopedBlockedDates.length})
+                  </span>
+                </span>
+                <span className="rounded-md border border-white/20 px-2 py-0.5 text-xs font-normal text-white/80">
+                  {closedDaysExpanded ? "Κλείσιμο ▴" : "Άνοιγμα ▾"}
+                </span>
+              </button>
+              {!closedDaysExpanded ? null : scopedBlockedDates.length === 0 ? (
                 <p className="text-xs text-white/50">Καμία επιπλέον κλειστή ημέρα.</p>
               ) : (
                 <ul className="space-y-2 text-sm">

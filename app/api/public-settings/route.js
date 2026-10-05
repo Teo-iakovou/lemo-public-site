@@ -10,6 +10,7 @@ const emptySettings = {
   blockedDates: [],
   barberBlockedDates: {},
   barberPrices: { LEMO: 15, FOROU: 15, KOUSHIS: 15 },
+  barberPriceHidden: {},
   allowedDates: [],
   specialDayHours: {},
   extraDaySlots: {},

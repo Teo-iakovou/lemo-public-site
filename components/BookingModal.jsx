@@ -235,13 +235,17 @@ export default function BookingModal({ open, onClose, editAppointment }) {
 
   // Public settings drive barber pricing; fallback keeps booking safe if settings are missing.
   const PRICES = useMemo(() => {
-    const defaults = { lemo: 15, forou: 15 };
+    const defaults = { lemo: 15, forou: 15, koushis: 15 };
     const map = publicSettings?.barberPrices || {};
+    // null/"" would coerce to 0 and show "€0" — treat them as missing.
+    const pick = (value, fallback) =>
+      value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
+    // A barber hidden in the settings gets null, so no price is rendered anywhere.
+    const hidden = publicSettings?.barberPriceHidden || {};
     return {
-      lemo: Number.isFinite(Number(map.LEMO)) ? Number(map.LEMO) : defaults.lemo,
-      forou: Number.isFinite(Number(map.FOROU)) ? Number(map.FOROU) : defaults.forou,
-      // Koushis price is intentionally hidden for now.
-      koushis: null,
+      lemo: hidden.LEMO ? null : pick(map.LEMO, defaults.lemo),
+      forou: hidden.FOROU ? null : pick(map.FOROU, defaults.forou),
+      koushis: hidden.KOUSHIS ? null : pick(map.KOUSHIS, defaults.koushis),
     };
   }, [publicSettings]);
   function formatEuro(v) {
@@ -291,7 +295,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     const price = PRICES[toBarberId(barber)];
     const full = price ? `${base} — ${formatEuro(price)}` : base;
     return `${prefix}${full}`.trim();
-  }, [barber, date, time, editingActive, t]);
+  }, [barber, date, time, editingActive, t, PRICES]);
   const confirmButtonLabel = editingActive
     ? submitting
       ? t("booking.buttons.saving")
