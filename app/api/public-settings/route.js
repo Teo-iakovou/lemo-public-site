@@ -15,6 +15,7 @@ const emptySettings = {
   specialDayHours: {},
   extraDaySlots: {},
   visibleMonthCount: 2,
+  announcement: { enabled: false, text: "", tone: "info" },
 };
 
 const fallbackStore = (() => {

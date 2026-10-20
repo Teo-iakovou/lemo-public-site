@@ -140,14 +140,23 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // "same" → second appointment shares the first's date; "other" → its own date2.
   const [secondDateMode, setSecondDateMode] = useState("same");
   const [date2, setDate2] = useState("");
+  // Month availability for ALL three barbers, prefetched as soon as the second appointment is
+  // opened: { Lemo: { counts, slots }, ... }. Picking a barber/day then renders instantly
+  // instead of waiting on a request (no layout jump).
+  const [cache2, setCache2] = useState({});
   const resetSecond = useCallback(() => {
-    setAddSecond(false); setBarber2(""); setTime2("");
+    setAddSecond(false); setBarber2(""); setTime2(""); setCache2({});
     setSlots2([]); setLoadingSlots2(false); setBookedForEnabled(false); setBookedFor2("");
     setSecondDateMode("same"); setDate2("");
   }, []);
 
   // The date the second appointment actually lands on.
   const effectiveDate2 = secondDateMode === "other" ? date2 : date;
+  // The two appointments only clash when they are with the SAME barber at overlapping times.
+  // Different barbers at the same time is fine (e.g. two people, one chair each).
+  const sameBarberAsFirst = Boolean(barber && barber2 && toBarberId(barber) === toBarberId(barber2));
+  const clashesWithFirst = (slot2, onDate2) =>
+    Boolean(sameBarberAsFirst && time && slot2 && onDate2 === date && slotsOverlap(slot2, time));
 
   // Reset the second-appointment sub-form whenever the modal closes.
   useEffect(() => { if (!open) resetSecond(); }, [open, resetSecond]);
@@ -163,26 +172,39 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // Availability for the second slot uses slot 1's date + the chosen second barber — same source
   // (getAvailability -> public /api/availability) and same 60' same-day cutoff as slot 1, so a
   // shown time can never be rejected by the backend for lead-time reasons.
+  // Prefetched month data (cache2) is shown straight away; the exact per-day list is then
+  // re-fetched quietly and swapped in, so the time list never blanks out while loading.
+  const cachedSlots2 = barber2 && effectiveDate2 ? cache2[barber2]?.slots?.[effectiveDate2] : undefined;
   useEffect(() => {
-    if (!open || !addSecond || !barber2 || !effectiveDate2) { setSlots2([]); return; }
+    if (!open || !addSecond || !barber2 || !effectiveDate2) { setSlots2([]); setLoadingSlots2(false); return; }
     let aborted = false;
-    setLoadingSlots2(true);
+    if (Array.isArray(cachedSlots2)) {
+      setSlots2(cachedSlots2);
+      setLoadingSlots2(false);
+    } else {
+      setSlots2([]);
+      setLoadingSlots2(true);
+    }
     getAvailability({ serviceId, date: effectiveDate2, barberId: toBarberId(barber2) })
       .then((res) => { if (!aborted) setSlots2(Array.isArray(res) ? res : res?.slots || []); })
-      .catch(() => { if (!aborted) setSlots2([]); })
+      .catch(() => { if (!aborted && !Array.isArray(cachedSlots2)) setSlots2([]); })
       .finally(() => { if (!aborted) setLoadingSlots2(false); });
     return () => { aborted = true; };
+    // cachedSlots2 is read once per barber/date change on purpose — a later cache fill must not
+    // overwrite the fresher per-day list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, addSecond, barber2, effectiveDate2, serviceId]);
 
   // If the first slot changes (or dates line up) such that the second's chosen slot now
   // overlaps the first on the SAME date, clear the second's selection and flag it inline.
   useEffect(() => {
     if (!addSecond || !time2 || !time) return;
-    if (effectiveDate2 === date && slotsOverlap(time2, time)) {
+    if (clashesWithFirst(time2, effectiveDate2)) {
       setTime2("");
       setSlotNotice("booking.labels.slotUnavailable");
     }
-  }, [time, effectiveDate2, date, addSecond, time2]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [time, effectiveDate2, date, addSecond, time2, sameBarberAsFirst]);
 
   // Re-fetch availability for the current selection(s) when the Header refresh button is
   // pressed while the modal is open. Reuses getAvailability (same as the normal flow). If a
@@ -213,7 +235,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
         const list2 = Array.isArray(res2) ? res2 : res2?.slots || [];
         setSlots2(list2);
         // Stale if the backend dropped it, or it now overlaps the first slot on the same date.
-        const overlapsFirst = effectiveDate2 === date && time && slotsOverlap(time2, time);
+        const overlapsFirst = clashesWithFirst(time2, effectiveDate2);
         if (time2 && (!list2.includes(time2) || overlapsFirst)) {
           setTime2("");
           cleared = true;
@@ -224,7 +246,8 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     }
 
     setSlotNotice(cleared ? "booking.labels.slotUnavailable" : "");
-  }, [open, serviceId, date, barber, time, addSecond, barber2, time2, effectiveDate2]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, serviceId, date, barber, time, addSecond, barber2, time2, effectiveDate2, sameBarberAsFirst]);
 
   // Register the re-fetch handler with the refresh bus while the modal is open, so the
   // Header button re-fetches slots instead of falling back to router.refresh().
@@ -711,6 +734,92 @@ export default function BookingModal({ open, onClose, editAppointment }) {
     return next;
   }, [highlights, blockedDatesSet]);
 
+  // ── Second appointment "another day" calendar ─────────────────────────────────────────
+  // Same availability bars as the first calendar, but for the SECOND barber, with that
+  // barber's own closed months / blocked dates, and minus the first appointment's slot when
+  // both are with the same barber on the same day — so it always matches what the customer
+  // has already picked.
+  const barber2Ref = useRef(barber2);
+  barber2Ref.current = barber2;
+  const counts2 = useMemo(() => cache2[barber2]?.counts || {}, [cache2, barber2]);
+  const slotsByDate2 = useMemo(() => cache2[barber2]?.slots || {}, [cache2, barber2]);
+  const calendar2Loaded = Boolean(barber2 && cache2[barber2]);
+  const barber2Key = useMemo(
+    () => toBarberSettingsKey(toBarberId(barber2) || barber2),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [barber2]
+  );
+  const blockedDates2List = useMemo(
+    () => resolveScopedList(publicSettings, "barberBlockedDates", "blockedDates", barber2Key),
+    [publicSettings, barber2Key]
+  );
+  const disabledMonths2List = useMemo(
+    () => resolveScopedList(publicSettings, "barberClosedMonths", "closedMonths", barber2Key),
+    [publicSettings, barber2Key]
+  );
+
+  const loadCalendar2Month = useCallback(
+    async (monthStart, barberName) => {
+      const data = await getHorizonAvailability({
+        start: monthStart,
+        days: 35,
+        barberId: toBarberId(barberName),
+        include: "slots",
+      });
+      return { counts: data?.counts || {}, slots: data?.slots || {} };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const mergeCache2 = useCallback((barberName, part) => {
+    setCache2((prev) => {
+      const cur = prev[barberName] || { counts: {}, slots: {} };
+      return {
+        ...prev,
+        [barberName]: {
+          counts: { ...cur.counts, ...part.counts },
+          slots: { ...cur.slots, ...part.slots },
+        },
+      };
+    });
+  }, []);
+
+  // As soon as "add second appointment" is opened, prefetch this month + next for all three
+  // barbers in the background, so choosing any barber (same day or another day) is instant.
+  useEffect(() => {
+    if (!open || !addSecond) return undefined;
+    let aborted = false;
+    const curr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    const nxtDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nxt = `${nxtDate.getFullYear()}-${String(nxtDate.getMonth() + 1).padStart(2, "0")}-01`;
+    ["Lemo", "Forou", "Koushis"].forEach((b) => {
+      Promise.all([loadCalendar2Month(curr, b), loadCalendar2Month(nxt, b)])
+        .then(([a, c]) => {
+          if (aborted) return;
+          mergeCache2(b, { counts: { ...a.counts, ...c.counts }, slots: { ...a.slots, ...c.slots } });
+        })
+        .catch(() => {});
+    });
+    return () => {
+      aborted = true;
+    };
+  }, [open, addSecond, today, loadCalendar2Month, mergeCache2]);
+
+  const calendarHighlights2 = useMemo(() => {
+    const out = { ...counts2 };
+    Object.entries(slotsByDate2).forEach(([ds, list]) => {
+      if (!Array.isArray(list)) return;
+      out[ds] = list.filter((s) => !clashesWithFirst(s, ds)).length;
+    });
+    blockedDates2List.forEach((ds) => {
+      out[ds] = 0;
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counts2, slotsByDate2, blockedDates2List, sameBarberAsFirst, date, time]);
+
+
   // Utility: list all YYYY-MM-DD dates for a given month start string
   function listMonthDates(monthStartStr) {
     try {
@@ -1148,7 +1257,7 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                   // Symmetric exclusion: when the second appointment is on this same date,
                   // hide any first-slot option that overlaps the second's chosen time.
                   const firstOpts = slots.filter(
-                    (s) => !(addSecond && time2 && effectiveDate2 === date && slotsOverlap(s, time2))
+                    (s) => !(addSecond && sameBarberAsFirst && time2 && effectiveDate2 === date && slotsOverlap(s, time2))
                   );
                   return (
                   <div className="flex flex-wrap gap-2">
@@ -1313,8 +1422,9 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         <button
                           type="button"
                           onClick={resetSecond}
-                          className="text-xs text-white/60 hover:text-white"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-rose-400/50 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 hover:text-white active:bg-rose-500/30"
                         >
+                          <span aria-hidden className="text-sm leading-none">✕</span>
                           {t("booking.second.remove")}
                         </button>
                       </div>
@@ -1352,22 +1462,6 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                           </div>
                         )}
                       </div>
-                      {/* Another-day date picker — same rules as the first appointment's calendar */}
-                      {secondDateMode === "other" && (
-                        <div>
-                          <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickDate")}</div>
-                          <Calendar
-                            value={date2}
-                            onChange={(ds) => { setDate2(ds); setTime2(""); setSlotNotice(""); }}
-                            minDate={minDate}
-                            maxDate={maxDate}
-                            closedWeekdays={[0, 1]}
-                            disabledMonths={disabledMonthsList}
-                            blockedDates={blockedDatesList}
-                            allowedDates={manualOpenDatesList}
-                          />
-                        </div>
-                      )}
                       {/* Barber */}
                       <div>
                         <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickBarber")}</div>
@@ -1376,7 +1470,13 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                             <button
                               key={b}
                               type="button"
-                              onClick={() => { setBarber2(b); setTime2(""); }}
+                              onClick={() => {
+                                if (b === barber2) return;
+                                setBarber2(b);
+                                setTime2("");
+                                // Keep the chosen day: the calendar and times just switch to this
+                                // barber's (prefetched) availability, without the layout jumping.
+                              }}
                               className={`rounded-md border px-3 py-1.5 text-sm ${
                                 barber2 === b
                                   ? "border-[#8B2FF0] bg-[#8B2FF0]/20 text-white"
@@ -1388,18 +1488,64 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                           ))}
                         </div>
                       </div>
-                      {/* Time — excludes any slot that overlaps the first appointment when
-                          the second is on the SAME date, regardless of barber. */}
+                      {/* Another-day date picker — same rules as the first appointment's calendar */}
+                      {secondDateMode === "other" && (
+                        <div>
+                          <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickDate")}</div>
+                          <div className="relative">
+                            <div
+                              className={`transition-opacity duration-200 ${
+                                calendar2Loaded ? "opacity-100" : "opacity-40 pointer-events-none"
+                              }`}
+                            >
+                              <Calendar
+                                value={date2}
+                                onChange={(ds) => { setDate2(ds); setTime2(""); setSlotNotice(""); }}
+                                minDate={minDate}
+                                maxDate={maxDate}
+                                closedWeekdays={[0, 1]}
+                                highlights={calendar2Loaded ? calendarHighlights2 : {}}
+                                disabledMonths={disabledMonths2List}
+                                blockedDates={blockedDates2List}
+                                allowedDates={manualOpenDatesList}
+                                onMonthChange={(firstOfMonth) => {
+                                  const forBarber = barber2Ref.current;
+                                  if (!forBarber) return;
+                                  const start = `${firstOfMonth.getFullYear()}-${String(firstOfMonth.getMonth() + 1).padStart(2, "0")}-01`;
+                                  loadCalendar2Month(start, forBarber)
+                                    .then((part) => mergeCache2(forBarber, part))
+                                    .catch(() => {});
+                                }}
+                              />
+                            </div>
+                            {/* Hint sits OVER the calendar, so the box keeps its size. */}
+                            {!calendar2Loaded && (
+                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+                                <span className="rounded-md bg-black/80 px-3 py-2 text-center text-sm text-white/80">
+                                  {barber2 ? "…" : t("booking.second.pickBarberFirst")}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {/* Time — excludes a slot only when it overlaps the first appointment on
+                          the SAME date with the SAME barber. Another barber at the same time is OK. */}
                       {barber2 && effectiveDate2 && (
                         <div>
                           <div className="mb-1 text-xs text-neutral-400">{t("booking.second.pickTime")}</div>
-                          {loadingSlots2 ? (
-                            <span className="text-sm text-white/50">…</span>
+                          {loadingSlots2 && !slots2.length ? (
+                            <div className="flex flex-wrap gap-2" aria-busy="true">
+                              {Array.from({ length: 8 }).map((_, i) => (
+                                <span
+                                  key={i}
+                                  className="h-[34px] w-[62px] animate-pulse rounded-md border border-white/10 bg-white/5"
+                                />
+                              ))}
+                            </div>
                           ) : (
                             (() => {
-                              const opts = slots2.filter(
-                                (s) => !(effectiveDate2 === date && time && slotsOverlap(s, time))
-                              );
+                              const opts = slots2.filter((s) => !clashesWithFirst(s, effectiveDate2));
                               return opts.length ? (
                                 <div className="flex flex-wrap gap-2">
                                   {opts.map((s) => (

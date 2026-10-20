@@ -300,20 +300,6 @@ export default function AuthModal() {
           {description && <p className="text-sm text-white/70">{description}</p>}
         </div>
 
-        {view === "login" && (
-          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
-            {t("auth.messages.systemUpdated")}{" "}
-            <button
-              type="button"
-              onClick={goToSignup}
-              className="underline underline-offset-2 font-semibold hover:text-white transition"
-            >
-              {t("auth.messages.signupAgain")}
-            </button>
-            .
-          </div>
-        )}
-
         <form onSubmit={onSubmit} className="space-y-4">
           {showNameField && (
             <input

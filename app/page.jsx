@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "../components/Header";
+import AnnouncementBanner from "../components/AnnouncementBanner";
 import Footer from "../components/Footer";
 import Reveal from "../components/Reveal";
 import BookingModal from "../components/BookingModal";
@@ -57,6 +58,7 @@ export default function Home() {
     <div className="min-h-screen">
       {intro && <IntroOverlay onDone={() => setIntro(false)} />}
       <Header />
+      <AnnouncementBanner />
 
       {/* Hero — shorter than full viewport so the next section peeks on first load */}
       <section className="relative flex items-center justify-center hero-min-h overflow-hidden">
