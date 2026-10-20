@@ -31,7 +31,23 @@
 @media (max-width: 1023.98px) {
   .photoWrap {
     inset: auto 0 0 0;
-    height: 68vh;
+    height: var(--active-h, 68vh);
+  }
+}
+
+/* Mobile scroll-driven reveal. The track is taller than the stack by SCROLL_SPAN; the
+   stack sticks under the header while the page scrolls through that span, and the scroll
+   progress picks the open photo (TeamShowcase.jsx). --active-h keeps the whole stack
+   (open photo + two collapsed rows) inside the screen on short phones. */
+@media (max-width: 1023.98px) {
+  .track {
+    --active-h: min(68vh, calc(100svh - 20rem));
+    /* open panel + 2 collapsed rows (6rem each) + 2 gaps (0.5rem) + scroll span */
+    height: calc(var(--active-h) + 13rem + 120vh);
+  }
+  .sticky {
+    position: sticky;
+    top: 5.5rem; /* clears the sticky header */
   }
 }
 

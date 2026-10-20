@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import { useLanguage } from "./LanguageProvider";
 import styles from "./TeamShowcase.module.css";
@@ -36,7 +36,7 @@ function Panel({ memberKey, src, index, active, onActivate, eager }) {
         // Desktop: grow the active panel (flex) — collapsed stay narrow.
         // Mobile: control height instead (short when collapsed, tall when active).
         "lg:h-full " +
-        (active ? "h-[68vh] lg:flex-[4]" : "h-24 lg:flex-[1]") +
+        (active ? "h-[var(--active-h,68vh)] lg:flex-[4]" : "h-24 lg:flex-[1]") +
         " " +
         styles.panel
       }
@@ -129,11 +129,52 @@ function Panel({ memberKey, src, index, active, onActivate, eager }) {
   );
 }
 
+const MOBILE_QUERY = "(max-width: 1023.98px)";
+
 export default function TeamShowcase({ members = MEMBERS }) {
   const { t } = useLanguage();
-  // Default: first panel (Lemo) active. Hover/focus/tap switches the active one.
+  // Default: first panel (Lemo) active. Desktop: hover/focus/tap switches the active one.
+  // Mobile: scrolling drives it — see the effect below.
   const [active, setActive] = useState(0);
   const activate = useCallback((i) => setActive(i), []);
+  const trackRef = useRef(null);
+  const stackRef = useRef(null);
+
+  // Mobile scroll-driven reveal. The stack is sticky inside a taller "track"; how far the
+  // page has scrolled through the track picks the open photo (equal share per barber). The
+  // track's geometry never depends on which panel is open, so opening one can't shift the
+  // scroll position and flip it back — no jitter, and no tapping needed.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mq = window.matchMedia(MOBILE_QUERY);
+
+    // Runs straight in the scroll handler (one rect read + a no-op setState when nothing
+    // changed) so the open photo always matches the current scroll position.
+    const update = () => {
+      if (!mq.matches) return;
+      const track = trackRef.current;
+      const stack = stackRef.current;
+      if (!track || !stack) return;
+      const rect = track.getBoundingClientRect();
+      const stickyTop = parseFloat(getComputedStyle(stack).top) || 0;
+      const travel = rect.height - stack.offsetHeight;
+      if (travel <= 0) return;
+      const progress = Math.min(1, Math.max(0, (stickyTop - rect.top) / travel));
+      const next = Math.min(members.length - 1, Math.floor(progress * members.length));
+      setActive((prev) => (prev === next ? prev : next));
+    };
+    const onScroll = update;
+
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    mq.addEventListener?.("change", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      mq.removeEventListener?.("change", onScroll);
+    };
+  }, [members.length]);
 
   return (
     <section id="team" className="section scroll-mt-20">
@@ -147,8 +188,12 @@ export default function TeamShowcase({ members = MEMBERS }) {
           </h2>
         </Reveal>
 
-        {/* The accordion band. Column on mobile, row on lg+. */}
-        <div className="mt-10 sm:mt-14 flex flex-col gap-2 lg:h-[80vh] lg:flex-row">
+        {/* The accordion band. Column on mobile (sticky, scroll-driven), row on lg+ (hover). */}
+        <div ref={trackRef} className={`mt-10 sm:mt-14 ${styles.track}`}>
+        <div
+          ref={stackRef}
+          className={`flex flex-col gap-2 lg:h-[80vh] lg:flex-row ${styles.sticky}`}
+        >
           {members.map((m, i) => (
             <Panel
               key={m.key}
@@ -160,6 +205,7 @@ export default function TeamShowcase({ members = MEMBERS }) {
               eager={i === 0}
             />
           ))}
+        </div>
         </div>
       </div>
     </section>
