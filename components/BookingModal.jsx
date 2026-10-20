@@ -1422,10 +1422,11 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                         <button
                           type="button"
                           onClick={resetSecond}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-rose-400/50 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 hover:text-white active:bg-rose-500/30"
+                          aria-label={t("booking.second.remove")}
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-1 text-xs text-white/50 hover:text-rose-300 active:text-rose-400"
                         >
-                          <span aria-hidden className="text-sm leading-none">✕</span>
-                          {t("booking.second.remove")}
+                          <span aria-hidden className="leading-none">✕</span>
+                          {t("booking.second.removeShort")}
                         </button>
                       </div>
                       {/* Date choice: same day (default) or another day */}
