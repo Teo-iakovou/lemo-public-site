@@ -31,6 +31,13 @@ const DEFAULT_DAY_CLOSE_MINUTES = 19 * 60 + 40;
 const SATURDAY_CLOSE_MINUTES = 17 * 60 + 40;
 const SLOT_STEP_MINUTES = 40;
 const EXTRA_WINDOW_MINUTES = 120;
+// "ALL" in the barber picker: closed months / closed days apply to every barber at once.
+const ALL_BARBERS = "ALL";
+const BARBER_LABEL = { LEMO: "ΛΕΜΟ", FOROU: "ΦΟΡΟΥ", KOUSHIS: "ΚΟΥΣΙΗΣ" };
+const targetKeysFor = (key) => (key === ALL_BARBERS ? BARBER_KEYS : [key]);
+const closedMonthsOf = (s, key) => resolveScopedList(s, "barberClosedMonths", "closedMonths", key);
+const blockedDatesOf = (s, key) => resolveScopedList(s, "barberBlockedDates", "blockedDates", key);
+
 const VISIBLE_MONTH_CHOICES = Array.from(
   { length: VISIBLE_MONTH_LIMITS.max - VISIBLE_MONTH_LIMITS.min + 1 },
   (_, idx) => VISIBLE_MONTH_LIMITS.min + idx
@@ -270,26 +277,36 @@ export default function BarberControls() {
     }
   }, []);
 
-  const scopedClosedMonths = useMemo(
-    () =>
-      resolveScopedList(
-        settings,
-        "barberClosedMonths",
-        "closedMonths",
-        selectedBarberKey
-      ),
-    [settings, selectedBarberKey]
-  );
-  const scopedBlockedDates = useMemo(
-    () =>
-      resolveScopedList(
-        settings,
-        "barberBlockedDates",
-        "blockedDates",
-        selectedBarberKey
-      ),
-    [settings, selectedBarberKey]
-  );
+  const isAll = selectedBarberKey === ALL_BARBERS;
+  // For "ALL": a month counts as closed only when it's closed for every barber; months closed
+  // for just some are shown as partial (monthClosedBy) so nothing is hidden.
+  const monthClosedBy = useMemo(() => {
+    const map = {};
+    targetKeysFor(selectedBarberKey).forEach((key) =>
+      closedMonthsOf(settings, key).forEach((m) => {
+        (map[m] = map[m] || []).push(key);
+      })
+    );
+    return map;
+  }, [settings, selectedBarberKey]);
+  const scopedClosedMonths = useMemo(() => {
+    const need = targetKeysFor(selectedBarberKey).length;
+    return Object.keys(monthClosedBy)
+      .map(Number)
+      .filter((m) => monthClosedBy[m].length === need)
+      .sort((a, b) => a - b);
+  }, [monthClosedBy, selectedBarberKey]);
+  // For "ALL": every date closed for at least one barber, with who it's closed for.
+  const dateClosedBy = useMemo(() => {
+    const map = {};
+    targetKeysFor(selectedBarberKey).forEach((key) =>
+      blockedDatesOf(settings, key).forEach((d) => {
+        (map[d] = map[d] || []).push(key);
+      })
+    );
+    return map;
+  }, [settings, selectedBarberKey]);
+  const scopedBlockedDates = useMemo(() => Object.keys(dateClosedBy).sort(), [dateClosedBy]);
   const selectedBarberPrice = useMemo(() => {
     const raw = settings?.barberPrices?.[selectedBarberKey];
     return Number.isFinite(Number(raw)) ? Number(raw) : 15;
@@ -335,46 +352,31 @@ export default function BarberControls() {
     return () => document.removeEventListener("mousedown", handleSuggestionClick);
   }, [whitelistSuggestionsOpen, extraSuggestionsOpen]);
 
+  // One barber: toggle. ALL: if the month is closed for every barber → open it for all,
+  // otherwise close it for all.
   const toggleMonth = (index) => {
     setSettings((prev) => {
-      const current = resolveScopedList(
-        prev,
-        "barberClosedMonths",
-        "closedMonths",
-        selectedBarberKey
-      );
-      const set = new Set(current);
-      if (set.has(index)) {
-        set.delete(index);
-      } else {
-        set.add(index);
-      }
-      return {
-        ...prev,
-        barberClosedMonths: {
-          ...(prev.barberClosedMonths || {}),
-          [selectedBarberKey]: Array.from(set).sort((a, b) => a - b),
-        },
-      };
+      const keys = targetKeysFor(selectedBarberKey);
+      const closeIt = !keys.every((key) => closedMonthsOf(prev, key).includes(index));
+      const nextMap = { ...(prev.barberClosedMonths || {}) };
+      keys.forEach((key) => {
+        const set = new Set(closedMonthsOf(prev, key));
+        if (closeIt) set.add(index);
+        else set.delete(index);
+        nextMap[key] = Array.from(set).sort((a, b) => a - b);
+      });
+      return { ...prev, barberClosedMonths: nextMap };
     });
   };
 
   const removeDate = (type, value) => {
     setSettings((prev) => {
       if (type === "blocked") {
-        const current = resolveScopedList(
-          prev,
-          "barberBlockedDates",
-          "blockedDates",
-          selectedBarberKey
-        );
-        return {
-          ...prev,
-          barberBlockedDates: {
-            ...(prev.barberBlockedDates || {}),
-            [selectedBarberKey]: current.filter((d) => d !== value),
-          },
-        };
+        const nextMap = { ...(prev.barberBlockedDates || {}) };
+        targetKeysFor(selectedBarberKey).forEach((key) => {
+          nextMap[key] = blockedDatesOf(prev, key).filter((d) => d !== value);
+        });
+        return { ...prev, barberBlockedDates: nextMap };
       }
       const next = {
         ...prev,
@@ -409,21 +411,13 @@ export default function BarberControls() {
       return;
     }
     setSettings((prev) => {
-      const current = resolveScopedList(
-        prev,
-        "barberBlockedDates",
-        "blockedDates",
-        selectedBarberKey
-      );
-      const set = new Set(current);
-      datesToLock.forEach((date) => set.add(date));
-      return {
-        ...prev,
-        barberBlockedDates: {
-          ...(prev.barberBlockedDates || {}),
-          [selectedBarberKey]: Array.from(set).sort(),
-        },
-      };
+      const nextMap = { ...(prev.barberBlockedDates || {}) };
+      targetKeysFor(selectedBarberKey).forEach((key) => {
+        const set = new Set(blockedDatesOf(prev, key));
+        datesToLock.forEach((date) => set.add(date));
+        nextMap[key] = Array.from(set).sort();
+      });
+      return { ...prev, barberBlockedDates: nextMap };
     });
     setSuccess(
       datesToLock.length === 1
@@ -651,15 +645,28 @@ export default function BarberControls() {
             }}
             className="rounded-lg border border-white/20 bg-black/30 px-3 py-1.5 text-sm text-white focus:border-emerald-300 focus:outline-none"
           >
+            <option value={ALL_BARBERS}>ΟΛΟΙ</option>
             {BARBER_KEYS.map((key) => (
               <option key={key} value={key}>
-                {key === "LEMO" ? "ΛΕΜΟ" : key === "FOROU" ? "ΦΟΡΟΥ" : "ΚΟΥΣΙΗΣ"}
+                {BARBER_LABEL[key]}
               </option>
             ))}
           </select>
         </div>
+        {isAll && (
+          <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            Οι αλλαγές σε κλειστούς μήνες και κλειστές μέρες εφαρμόζονται σε <b>όλους</b> τους
+            κουρείς. Με διακεκομμένο πλαίσιο φαίνονται όσα είναι κλειστά μόνο για κάποιους —
+            πάτημα τα κλείνει για όλους.
+          </p>
+        )}
+        {isAll ? (
+          <p className="mt-3 text-xs text-white/50">
+            Η τιμή ορίζεται ξεχωριστά για κάθε κουρέα — διάλεξε έναν από τη λίστα.
+          </p>
+        ) : (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <label className="text-xs uppercase tracking-wide text-white/60">Τιμή ({selectedBarberKey})</label>
+          <label className="text-xs uppercase tracking-wide text-white/60">Τιμή ({BARBER_LABEL[selectedBarberKey]})</label>
           <input
             type="number"
             min="0"
@@ -696,6 +703,7 @@ export default function BarberControls() {
             </span>
           )}
         </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           {VISIBLE_MONTH_CHOICES.map((count) => {
             const active =
@@ -734,18 +742,31 @@ export default function BarberControls() {
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
               {MONTH_LABELS.map((label, idx) => {
                 const active = scopedClosedMonths.includes(idx);
+                const partialBy = !active ? monthClosedBy[idx] || [] : [];
                 return (
                   <button
                     key={label}
                     type="button"
                     onClick={() => toggleMonth(idx)}
+                    title={
+                      partialBy.length
+                        ? `Κλειστός μόνο για: ${partialBy.map((k) => BARBER_LABEL[k]).join(", ")}`
+                        : undefined
+                    }
                     className={`rounded-lg px-3 py-2 text-sm border transition ${
                       active
                         ? "border-rose-400 bg-rose-500/20 text-rose-100"
+                        : partialBy.length
+                        ? "border-dashed border-rose-400/70 bg-rose-500/5 text-rose-100/80"
                         : "border-white/15 text-white/80 hover:border-white/40"
                     }`}
                   >
                     {label}
+                    {partialBy.length > 0 && (
+                      <span className="block text-[10px] leading-tight text-rose-200/70">
+                        {partialBy.map((k) => BARBER_LABEL[k]).join(", ")}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -817,7 +838,14 @@ export default function BarberControls() {
                       key={date}
                       className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2"
                     >
-                      <span>{formatLongDate(date)}</span>
+                      <span>
+                        {formatLongDate(date)}
+                        {isAll && (dateClosedBy[date] || []).length < BARBER_KEYS.length && (
+                          <span className="ml-2 rounded border border-dashed border-rose-400/60 px-1.5 py-0.5 text-[11px] text-rose-200/80">
+                            μόνο {(dateClosedBy[date] || []).map((k) => BARBER_LABEL[k]).join(", ")}
+                          </span>
+                        )}
+                      </span>
                       <button
                         type="button"
                         onClick={() => removeDate("blocked", date)}
