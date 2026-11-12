@@ -16,6 +16,7 @@ const emptySettings = {
   extraDaySlots: {},
   visibleMonthCount: 2,
   announcement: { enabled: false, text: "", tone: "info" },
+  slotRules: [],
 };
 
 const fallbackStore = (() => {

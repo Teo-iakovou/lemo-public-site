@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useAuth } from "./AuthProvider";
 import BarberControls from "./BarberControls";
 import AnnouncementControls from "./AnnouncementControls";
+import SlotRulesControls from "./SlotRulesControls";
 
 function canManageSettings(user) {
   if (!user) return false;
@@ -58,6 +59,7 @@ export default function BarberSettingsModal() {
         </header>
         <div className="max-h-[70vh] overflow-y-auto pr-1">
           <AnnouncementControls />
+          <SlotRulesControls />
           <BarberControls />
         </div>
       </div>

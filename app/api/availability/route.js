@@ -1,6 +1,13 @@
 import { BACKEND_BASE_URL, DIRECT_BACKEND_URL } from "../../../lib/config";
 import { fetchPublicSettingsServer } from "../../../lib/publicSettingsServer";
 import { resolveScopedList, toBarberSettingsKey } from "../../../lib/publicSettings";
+import {
+  activeSlotRule,
+  buildDaySlots,
+  minToHHMM,
+  normalizeSlotRules,
+  slotDurationFor,
+} from "../../../lib/slotRules";
 
 export const runtime = 'nodejs';
 // Always compute fresh; disable framework-level caching for this route
@@ -139,8 +146,6 @@ export async function GET(request) {
   }
 
   const base = DIRECT_BACKEND_URL || BACKEND_BASE_URL || "";
-  const duration = 40; // minutes per haircut
-  const step = 40; // grid step in minutes (appointments every 40')
 
   const settings = await fetchPublicSettingsServer();
   const scopedBarberKey = toBarberSettingsKey(barberId || barberRaw);
@@ -178,9 +183,17 @@ export async function GET(request) {
     return Response.json({ slots: [], ...(debugMode ? { debug: { ...dbg, reason: 'closed-day' } } : {}) }, { status: 200, headers: cacheHeaders });
   }
 
-  let candidates = slotify({ date: day, duration, step, forceOpen: manualOpen });
+  // Each candidate carries its own length (slot-duration rules from Settings, e.g. 30' after
+  // 13:00 in December). A special-hours whitelist keeps its labels; lengths still follow rules.
+  let candidates = buildDaySlots({
+    window: businessWindow(day, manualOpen),
+    rule: activeSlotRule(normalizeSlotRules(settings.slotRules), date, scopedBarberKey),
+  }).map((slot) => ({ start: slot.start, duration: slot.duration, label: minToHHMM(slot.start) }));
   if (whitelistTimes.length) {
-    candidates = listToSlots(whitelistTimes);
+    candidates = listToSlots(whitelistTimes).map((slot) => ({
+      ...slot,
+      duration: slotDurationFor(settings, date, slot.start, scopedBarberKey),
+    }));
   }
 
   // Do not allow booking in the past (e.g., yesterday)
@@ -263,7 +276,7 @@ export async function GET(request) {
     const startMinutes = c.start;
     const overlappers = existing.filter((b) => {
       const bStartMinutes = zonedMinutes(b.start);
-      return overlaps(startMinutes, duration, bStartMinutes, b.duration);
+      return overlaps(startMinutes, c.duration, bStartMinutes, b.duration);
     });
     if (overlappers.length) {
       removedByOverlap.push({
@@ -305,12 +318,9 @@ export async function GET(request) {
 
   let out = free.map((s) => s.label);
   if (!whitelistTimes.length && baseWin) {
-    out = out.filter((label) => {
-      const minutes = hhmmToMinutes(label);
-      if (minutes == null) return false;
-      const end = minutes + duration;
-      return minutes >= baseWin.open && end <= baseWin.close;
-    });
+    out = free
+      .filter((slot) => slot.start >= baseWin.open && slot.start + slot.duration <= baseWin.close)
+      .map((slot) => slot.label);
   }
   // Store in cache (guarded by TTL)
   if (TTL_MS > 0) CACHE.set(cacheKey, { ts: Date.now(), slots: out });

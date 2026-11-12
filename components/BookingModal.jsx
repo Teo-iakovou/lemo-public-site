@@ -20,6 +20,7 @@ import {
   resolveScopedList,
   toBarberSettingsKey,
 } from "../lib/publicSettings";
+import { slotDurationFor } from "../lib/slotRules";
 import { useAuth } from "./AuthProvider";
 import { useLanguage } from "./LanguageProvider";
 import { useRefreshBus } from "./RefreshProvider";
@@ -37,14 +38,14 @@ function slotToMinutes(hhmm) {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
-// Half-open overlap of two [start, start+dur) ranges expressed as "HH:MM" labels.
-// With the fixed 40/40 grid this reduces to "same start", but it stays correct if
-// durations ever differ.
-function slotsOverlap(a, b, dur = SLOT_DURATION_MIN) {
+// Half-open overlap of two [start, start+dur) ranges expressed as "HH:MM" labels. Slot
+// lengths can differ (slot-duration rules in Settings, e.g. 30' after 13:00), so each side
+// carries its own duration.
+function slotsOverlap(a, b, durA = SLOT_DURATION_MIN, durB = durA) {
   const as = slotToMinutes(a);
   const bs = slotToMinutes(b);
   if (as == null || bs == null) return false;
-  return as < bs + dur && bs < as + dur;
+  return as < bs + durB && bs < as + durA;
 }
 
 function toAthensDateParts(value) {
@@ -155,8 +156,17 @@ export default function BookingModal({ open, onClose, editAppointment }) {
   // The two appointments only clash when they are with the SAME barber at overlapping times.
   // Different barbers at the same time is fine (e.g. two people, one chair each).
   const sameBarberAsFirst = Boolean(barber && barber2 && toBarberId(barber) === toBarberId(barber2));
+  // Same barber + same day → the two slots share that barber's slot-length rule for the day.
+  const slotLen = (ds, label) =>
+    slotDurationFor(publicSettings, ds, slotToMinutes(label), selectedBarberKey);
   const clashesWithFirst = (slot2, onDate2) =>
-    Boolean(sameBarberAsFirst && time && slot2 && onDate2 === date && slotsOverlap(slot2, time));
+    Boolean(
+      sameBarberAsFirst &&
+        time &&
+        slot2 &&
+        onDate2 === date &&
+        slotsOverlap(slot2, time, slotLen(date, slot2), slotLen(date, time))
+    );
 
   // Reset the second-appointment sub-form whenever the modal closes.
   useEffect(() => { if (!open) resetSecond(); }, [open, resetSecond]);
@@ -1257,7 +1267,14 @@ export default function BookingModal({ open, onClose, editAppointment }) {
                   // Symmetric exclusion: when the second appointment is on this same date,
                   // hide any first-slot option that overlaps the second's chosen time.
                   const firstOpts = slots.filter(
-                    (s) => !(addSecond && sameBarberAsFirst && time2 && effectiveDate2 === date && slotsOverlap(s, time2))
+                    (s) =>
+                      !(
+                        addSecond &&
+                        sameBarberAsFirst &&
+                        time2 &&
+                        effectiveDate2 === date &&
+                        slotsOverlap(s, time2, slotLen(date, s), slotLen(date, time2))
+                      )
                   );
                   return (
                   <div className="flex flex-wrap gap-2">
