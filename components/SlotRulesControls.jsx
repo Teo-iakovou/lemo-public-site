@@ -7,6 +7,7 @@ import {
   minToHHMM,
   normalizeSlotRules,
 } from "../lib/slotRules";
+import DateRangePicker from "./DateRangePicker";
 
 const BARBERS = [
   ["LEMO", "ΛΕΜΟ"],
@@ -225,28 +226,15 @@ export default function SlotRulesControls() {
               ))}
             </div>
           </div>
+          <div>
+            <div className="mb-1 text-xs uppercase tracking-wide text-white/60">Ημερομηνίες</div>
+            <DateRangePicker
+              from={draft.from}
+              to={draft.to}
+              onChange={({ from, to }) => setDraft((d) => ({ ...d, from, to }))}
+            />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              <span className="mb-1 block text-xs uppercase tracking-wide text-white/60">Από</span>
-              <input
-                type="date"
-                value={draft.from}
-                onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
-                className={field}
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-xs uppercase tracking-wide text-white/60">
-                Έως <span className="normal-case text-white/40">(κενό = χωρίς λήξη)</span>
-              </span>
-              <input
-                type="date"
-                value={draft.to}
-                min={draft.from || undefined}
-                onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
-                className={field}
-              />
-            </label>
             <label className="text-sm">
               <span className="mb-1 block text-xs uppercase tracking-wide text-white/60">Μετά τις</span>
               <select
