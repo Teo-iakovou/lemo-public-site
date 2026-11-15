@@ -355,6 +355,20 @@ export default function AuthProvider({ children }) {
 
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
+  // A save in Settings found the sign-in expired: sign out locally, close Settings and ask to
+  // log in again — Settings reopen by themselves right after a successful login.
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      setSettingsOpen(false);
+      setProfileOpen(false);
+      pendingCallbackRef.current = () => setSettingsOpen(true);
+      setModalState({ open: true, mode: "login", requiresDob: false, loading: false, error: "" });
+    };
+    window.addEventListener("auth:expired", onExpired);
+    return () => window.removeEventListener("auth:expired", onExpired);
+  }, []);
+
   useEffect(() => {
     const role = (user?.role || "customer").toLowerCase();
     if (role !== "barber" && role !== "admin") {
